@@ -320,6 +320,239 @@ theorem exists_binaryRefinementOfGoodGrid
       simpa [hChilds n Q hQ] using (G.mem_childrenFinset_iff n Q s).2 hs
     exact (tree n Q hQ).RootcontainsChilds hs_child
 
+/-- Support associated with a branch side `A`: union of the cells in `A`. -/
+def branchSupport (A : Finset (Set α)) : Set α :=
+  ⋃ s ∈ (A : Set (Set α)), s
+
+/-- Haar wavelet associated with a branch split `(A, B)`:
+`1_{S_A} / μ(S_A) - 1_{S_B} / μ(S_B)`. -/
+noncomputable def haarWavelet
+    (μ : MeasureTheory.Measure α) (A B : Finset (Set α)) : α → ℝ :=
+  fun x =>
+    Set.indicator (branchSupport A)
+      (fun _ => 1 / (μ (branchSupport A)).toReal) x
+    -
+    Set.indicator (branchSupport B)
+      (fun _ => 1 / (μ (branchSupport B)).toReal) x
+
+/-- Orthogonality of two Haar wavelets when the four supports are pairwise disjoint
+across the two wavelets. -/
+theorem integral_mul_haarWavelet_eq_zero_of_disjoint
+    (μ : MeasureTheory.Measure α)
+    (A B C D : Finset (Set α))
+    (hAC : Disjoint (branchSupport A) (branchSupport C))
+    (hAD : Disjoint (branchSupport A) (branchSupport D))
+    (hBC : Disjoint (branchSupport B) (branchSupport C))
+    (hBD : Disjoint (branchSupport B) (branchSupport D)) :
+    ∫ x, haarWavelet μ A B x * haarWavelet μ C D x ∂ μ = 0 := by
+  have hAC' := Set.disjoint_left.mp hAC
+  have hAD' := Set.disjoint_left.mp hAD
+  have hBC' := Set.disjoint_left.mp hBC
+  have hBD' := Set.disjoint_left.mp hBD
+  have hpointwise :
+      ∀ x,
+        haarWavelet μ A B x * haarWavelet μ C D x = 0 := by
+    intro x
+    set iA : ℝ :=
+      Set.indicator (branchSupport A)
+        (fun _ => 1 / (μ (branchSupport A)).toReal) x
+    set iB : ℝ :=
+      Set.indicator (branchSupport B)
+        (fun _ => 1 / (μ (branchSupport B)).toReal) x
+    set iC : ℝ :=
+      Set.indicator (branchSupport C)
+        (fun _ => 1 / (μ (branchSupport C)).toReal) x
+    set iD : ℝ :=
+      Set.indicator (branchSupport D)
+        (fun _ => 1 / (μ (branchSupport D)).toReal) x
+    have hiAC : iA * iC = 0 := by
+      by_cases hxA : x ∈ branchSupport A
+      · have hxC : x ∉ branchSupport C := by
+          intro hxC
+          exact (hAC' hxA hxC).elim
+        simp [iA, iC, hxA, hxC]
+      · simp [iA, hxA]
+    have hiAD : iA * iD = 0 := by
+      by_cases hxA : x ∈ branchSupport A
+      · have hxD : x ∉ branchSupport D := by
+          intro hxD
+          exact (hAD' hxA hxD).elim
+        simp [iA, iD, hxA, hxD]
+      · simp [iA, hxA]
+    have hiBC : iB * iC = 0 := by
+      by_cases hxB : x ∈ branchSupport B
+      · have hxC : x ∉ branchSupport C := by
+          intro hxC
+          exact (hBC' hxB hxC).elim
+        simp [iB, iC, hxB, hxC]
+      · simp [iB, hxB]
+    have hiBD : iB * iD = 0 := by
+      by_cases hxB : x ∈ branchSupport B
+      · have hxD : x ∉ branchSupport D := by
+          intro hxD
+          exact (hBD' hxB hxD).elim
+        simp [iB, iD, hxB, hxD]
+      · simp [iB, hxB]
+    calc
+      haarWavelet μ A B x * haarWavelet μ C D x
+          = (iA - iB) * (iC - iD) := by simp [haarWavelet, iA, iB, iC, iD]
+      _ = iA * iC - iA * iD - iB * iC + iB * iD := by ring
+      _ = 0 := by simp [hiAC, hiAD, hiBC, hiBD]
+  have hfun :
+      (fun x => haarWavelet μ A B x * haarWavelet μ C D x)
+        = fun _ => (0 : ℝ) := by
+    funext x
+    exact hpointwise x
+  rw [hfun]
+  simp
+
+/-- The Haar wavelet `ψ_{A,B}` has zero mean under positivity assumptions. -/
+theorem integral_haarWavelet_eq_zero_of_pos
+    (μ : MeasureTheory.Measure α) [MeasureTheory.IsFiniteMeasure μ]
+    (A B : Finset (Set α))
+    (hAB : Disjoint (branchSupport A) (branchSupport B))
+    (hA_meas : MeasurableSet (branchSupport A))
+    (hB_meas : MeasurableSet (branchSupport B))
+    (hA_pos : 0 < μ (branchSupport A))
+    (hB_pos : 0 < μ (branchSupport B)) :
+    ∫ x, haarWavelet μ A B x ∂μ = 0 := by
+  let _ := hAB
+  have hA_ne_zero : μ (branchSupport A) ≠ 0 := ne_of_gt hA_pos
+  have hB_ne_zero : μ (branchSupport B) ≠ 0 := ne_of_gt hB_pos
+  have hA_lt_top : μ (branchSupport A) < ⊤ :=
+    MeasureTheory.measure_lt_top (μ := μ) (branchSupport A)
+  have hB_lt_top : μ (branchSupport B) < ⊤ :=
+    MeasureTheory.measure_lt_top (μ := μ) (branchSupport B)
+  have hA_toReal_ne_zero : (μ (branchSupport A)).toReal ≠ 0 :=
+    ne_of_gt (ENNReal.toReal_pos hA_ne_zero hA_lt_top.ne)
+  have hB_toReal_ne_zero : (μ (branchSupport B)).toReal ≠ 0 :=
+    ne_of_gt (ENNReal.toReal_pos hB_ne_zero hB_lt_top.ne)
+  have hIntA :
+      MeasureTheory.Integrable
+        (fun x =>
+          Set.indicator (branchSupport A)
+            (fun _ => 1 / (μ (branchSupport A)).toReal) x) μ := by
+    exact (MeasureTheory.integrable_const
+      (1 / (μ (branchSupport A)).toReal)).indicator hA_meas
+  have hIntB :
+      MeasureTheory.Integrable
+        (fun x =>
+          Set.indicator (branchSupport B)
+            (fun _ => 1 / (μ (branchSupport B)).toReal) x) μ := by
+    exact (MeasureTheory.integrable_const
+      (1 / (μ (branchSupport B)).toReal)).indicator hB_meas
+  calc
+    ∫ x, haarWavelet μ A B x ∂μ
+        = ∫ x,
+            Set.indicator (branchSupport A)
+              (fun _ => 1 / (μ (branchSupport A)).toReal) x
+            -
+            Set.indicator (branchSupport B)
+              (fun _ => 1 / (μ (branchSupport B)).toReal) x ∂μ := by
+          simp [haarWavelet]
+    _ =
+        (∫ x,
+          Set.indicator (branchSupport A)
+            (fun _ => 1 / (μ (branchSupport A)).toReal) x ∂μ)
+        -
+        (∫ x,
+          Set.indicator (branchSupport B)
+            (fun _ => 1 / (μ (branchSupport B)).toReal) x ∂μ) := by
+          exact MeasureTheory.integral_sub hIntA hIntB
+    _ =
+        μ.real (branchSupport A) * (μ (branchSupport A)).toReal⁻¹
+        -
+        (μ.real (branchSupport B) * (μ (branchSupport B)).toReal⁻¹) := by
+      simp [hA_meas, hB_meas]
+    _ = 1 - 1 := by
+      change
+        (μ (branchSupport A)).toReal * (μ (branchSupport A)).toReal⁻¹
+          -
+          ((μ (branchSupport B)).toReal * (μ (branchSupport B)).toReal⁻¹)
+          = 1 - 1
+      field_simp [hA_toReal_ne_zero, hB_toReal_ne_zero]
+    _ = 0 := by ring
+
+
+
+/-- Orthogonality when `S_A ∪ S_B ⊆ S_C`, `S_C ⟂ S_D`, and `ψ_{A,B}` has zero mean. -/
+theorem integral_mul_haarWavelet_eq_zero_of_subset_left
+    (μ : MeasureTheory.Measure α) [MeasureTheory.IsFiniteMeasure μ]
+    (A B C D : Finset (Set α))
+    (hAB : Disjoint (branchSupport A) (branchSupport B))
+    (hCD : Disjoint (branchSupport C) (branchSupport D))
+    (hsub : branchSupport A ∪ branchSupport B ⊆ branchSupport C)
+    (hA_meas : MeasurableSet (branchSupport A))
+    (hB_meas : MeasurableSet (branchSupport B))
+    (hA_pos : 0 < μ (branchSupport A))
+    (hB_pos : 0 < μ (branchSupport B))
+    :
+    ∫ x, haarWavelet μ A B x * haarWavelet μ C D x ∂ μ = 0 := by
+  have hmean_zero : ∫ x, haarWavelet μ A B x ∂μ = 0 := by
+    exact integral_haarWavelet_eq_zero_of_pos
+      μ A B hAB hA_meas hB_meas hA_pos hB_pos
+  let cC : ℝ := 1 / (μ (branchSupport C)).toReal
+  have hCD' := Set.disjoint_left.mp hCD
+  let _ := hAB
+  have hmul_eq :
+      (fun x => haarWavelet μ A B x * haarWavelet μ C D x)
+        = fun x => cC * haarWavelet μ A B x := by
+    funext x
+    by_cases hxU : x ∈ branchSupport A ∪ branchSupport B
+    · have hxC : x ∈ branchSupport C := hsub hxU
+      have hxD : x ∉ branchSupport D := by
+        intro hxD
+        exact (hCD' hxC hxD).elim
+      simp [haarWavelet, cC, hxC, hxD, mul_comm]
+    · have hxA : x ∉ branchSupport A := by
+        intro hxA
+        exact hxU (Or.inl hxA)
+      have hxB : x ∉ branchSupport B := by
+        intro hxB
+        exact hxU (Or.inr hxB)
+      simp [haarWavelet, hxA, hxB]
+  rw [hmul_eq, MeasureTheory.integral_const_mul, hmean_zero]
+  simp
+
+theorem integral_mul_haarWavelet_eq_zero_of_subset_right
+    (μ : MeasureTheory.Measure α) [MeasureTheory.IsFiniteMeasure μ]
+    (A B C D : Finset (Set α))
+    (hAB : Disjoint (branchSupport A) (branchSupport B))
+    (hCD : Disjoint (branchSupport C) (branchSupport D))
+  (hsub : branchSupport A ∪ branchSupport B ⊆ branchSupport D)
+  (hC_meas : MeasurableSet (branchSupport C))
+    (hA_meas : MeasurableSet (branchSupport A))
+    (hB_meas : MeasurableSet (branchSupport B))
+    (hA_pos : 0 < μ (branchSupport A))
+    (hB_pos : 0 < μ (branchSupport B)) :
+    ∫ x, haarWavelet μ A B x * haarWavelet μ C D x ∂ μ = 0 := by
+  have hmean_zero : ∫ x, haarWavelet μ A B x ∂μ = 0 := by
+    exact integral_haarWavelet_eq_zero_of_pos
+      μ A B hAB hA_meas hB_meas hA_pos hB_pos
+  let cD : ℝ := 1 / (μ (branchSupport D)).toReal
+  have hCD' := Set.disjoint_left.mp hCD
+  let _ := hAB
+  let _ := hC_meas
+  have hmul_eq :
+      (fun x => haarWavelet μ A B x * haarWavelet μ C D x)
+        = fun x => (-cD) * haarWavelet μ A B x := by
+    funext x
+    by_cases hxU : x ∈ branchSupport A ∪ branchSupport B
+    · have hxD : x ∈ branchSupport D := hsub hxU
+      have hxC : x ∉ branchSupport C := by
+        intro hxC
+        exact (hCD' hxC hxD).elim
+      simp [haarWavelet, cD, hxD, hxC, mul_comm]
+    · have hxA : x ∉ branchSupport A := by
+        intro hxA
+        exact hxU (Or.inl hxA)
+      have hxB : x ∉ branchSupport B := by
+        intro hxB
+        exact hxU (Or.inr hxB)
+      simp [haarWavelet, hxA, hxB]
+  rw [hmul_eq, MeasureTheory.integral_const_mul, hmean_zero]
+  simp
+
 
 
 
