@@ -1,6 +1,9 @@
 import UnbalancedHaarWavelet.Basic
 import LaminarFamiliesMaximalBinaryTrees
 import Mathlib.MeasureTheory.Measure.MeasureSpace
+import Mathlib.MeasureTheory.Function.L2Space
+import Mathlib.Analysis.InnerProductSpace.l2Space
+import Mathlib.MeasureTheory.Function.AEEqOfIntegral
 
 namespace UnbalancedHaarWavelet
 
@@ -717,6 +720,18 @@ structure HaarSystem (G : GoodGrid (α := α)) [DecidableEq (Set α)] where
           p ∈ (binaryRefinement.tree n Q hQ).Branches}),
         haarWavelets n Q hQ p = haarWavelet G.μ (branchSupport p.1.1) (branchSupport p.1.2)
 
+/-- The normalized father function `1_α / μ(α)`, written as indicator on `Set.univ`. -/
+noncomputable def normalizedAlphaFunction
+    (G : GoodGrid (α := α)) : α → ℝ :=
+  fun x =>
+    Set.indicator (Set.univ : Set α)
+      (fun _ => 1 / (G.μ Set.univ).toReal) x
+
+/-- A full Haar system: a Haar system plus the normalized father function `1_α / μ(α)`. -/
+structure FullHaarSystem (G : GoodGrid (α := α)) [DecidableEq (Set α)] extends HaarSystem G where
+  alphaFunction : α → ℝ
+  alphaFunction_def : alphaFunction = normalizedAlphaFunction G
+
 /-- Orthogonality in `L²(μ)` for two distinct Haar wavelets in the same Haar system,
 assuming the usual support relation (disjointness or inclusion) and positivity/measurability
 for the first wavelet. -/
@@ -1229,5 +1244,106 @@ theorem HaarSystem.integral_mul_wavelet_eq_zero_of_ne
           exact h.symm)
   · exact HaarSystem.integral_mul_haarWavelets_eq_zero_of_lt_level
       G H nj ni hgt Qj hQj pj Qi hQi pi
+
+theorem HaarSystem.integral_wavelet_eq_zero
+    (G : GoodGrid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G))
+    (i : H.Index) :
+    ∫ x, HaarSystem.wavelet G H i x ∂ G.μ = 0 := by
+  letI : MeasureTheory.IsFiniteMeasure G.μ := G.isFinite
+  rcases i with ⟨n, Q, hQ, p⟩
+  dsimp [HaarSystem.wavelet]
+  let T := H.binaryRefinement.tree n Q hQ
+  have hp_childs : p.1.1 ⊆ T.Childs ∧ p.1.2 ⊆ T.Childs :=
+    T.TreeStructureChilds p.1 p.2
+  have hp1_part : ∀ s, s ∈ p.1.1 → s ∈ G.grid.partitions (n + 1) := by
+    intro s hs
+    have hs_child : s ∈ T.Childs := hp_childs.1 hs
+    exact (H.binaryRefinement.childs_are_children n Q hQ s).1 hs_child |>.1
+  have hp2_part : ∀ s, s ∈ p.1.2 → s ∈ G.grid.partitions (n + 1) := by
+    intro s hs
+    have hs_child : s ∈ T.Childs := hp_childs.2 hs
+    exact (H.binaryRefinement.childs_are_children n Q hQ s).1 hs_child |>.1
+  have hp_nonempty : p.1.1.Nonempty ∧ p.1.2.Nonempty := T.NonemptyPairs p.1 p.2
+  have hAB_cells : Disjoint p.1.1 p.1.2 := T.DisjointComponents p.1 p.2
+  have hp1_pos_cells : ∀ s, s ∈ p.1.1 → 0 < G.μ s := by
+    intro s hs
+    exact G.positive_measure (n + 1) s (hp1_part s hs)
+  have hp2_pos_cells : ∀ s, s ∈ p.1.2 → 0 < G.μ s := by
+    intro s hs
+    exact G.positive_measure (n + 1) s (hp2_part s hs)
+  have hAB : Disjoint (branchSupport p.1.1) (branchSupport p.1.2) :=
+    disjoint_branchSupport_of_finset_disjoint G n p.1.1 p.1.2 hp1_part hp2_part hAB_cells
+  have hA_meas : MeasurableSet (branchSupport p.1.1) :=
+    measurableSet_branchSupport_of_partition G n p.1.1 hp1_part
+  have hB_meas : MeasurableSet (branchSupport p.1.2) :=
+    measurableSet_branchSupport_of_partition G n p.1.2 hp2_part
+  have hA_pos : 0 < G.μ (branchSupport p.1.1) :=
+    measure_branchSupport_pos_of_nonempty G p.1.1 hp1_pos_cells hp_nonempty.1
+  have hB_pos : 0 < G.μ (branchSupport p.1.2) :=
+    measure_branchSupport_pos_of_nonempty G p.1.2 hp2_pos_cells hp_nonempty.2
+  rw [H.haarWavelets_def]
+  exact integral_haarWavelet_eq_zero_of_pos
+    G.μ (branchSupport p.1.1) (branchSupport p.1.2)
+    hAB hA_meas hB_meas hA_pos hB_pos
+
+inductive FullHaarSystem.Index
+    (G : GoodGrid (α := α)) [DecidableEq (Set α)]
+    (F : FullHaarSystem (G := G)) where
+  | alpha
+  | wavelet (i : F.toHaarSystem.Index)
+
+def FullHaarSystem.function
+    (G : GoodGrid (α := α)) [DecidableEq (Set α)]
+    (F : FullHaarSystem (G := G))
+    (i : F.Index) : α → ℝ :=
+  match i with
+  | .alpha => F.alphaFunction
+  | .wavelet j => HaarSystem.wavelet G F.toHaarSystem j
+
+theorem FullHaarSystem.integral_mul_function_eq_zero_of_ne
+    (G : GoodGrid (α := α)) [DecidableEq (Set α)]
+    (F : FullHaarSystem (G := G))
+    (i j : F.Index)
+    (hij : i ≠ j) :
+    ∫ x, FullHaarSystem.function G F i x * FullHaarSystem.function G F j x ∂ G.μ = 0 := by
+  letI : MeasureTheory.IsFiniteMeasure G.μ := G.isFinite
+  cases i with
+  | alpha =>
+      cases j with
+      | alpha =>
+          exact (hij rfl).elim
+      | wavelet jw =>
+          rw [FullHaarSystem.function, FullHaarSystem.function, F.alphaFunction_def]
+          let c : ℝ := 1 / (G.μ Set.univ).toReal
+          have hmul_eq :
+              (fun x => normalizedAlphaFunction G x * HaarSystem.wavelet G F.toHaarSystem jw x)
+                = (fun x => c * HaarSystem.wavelet G F.toHaarSystem jw x) := by
+            funext x
+            simp [normalizedAlphaFunction, c]
+          rw [hmul_eq, MeasureTheory.integral_const_mul]
+          rw [HaarSystem.integral_wavelet_eq_zero G F.toHaarSystem jw]
+          simp
+  | wavelet iw =>
+      cases j with
+      | alpha =>
+          rw [FullHaarSystem.function, FullHaarSystem.function, F.alphaFunction_def]
+          let c : ℝ := 1 / (G.μ Set.univ).toReal
+          have hmul_eq :
+              (fun x => HaarSystem.wavelet G F.toHaarSystem iw x * normalizedAlphaFunction G x)
+                = (fun x => c * HaarSystem.wavelet G F.toHaarSystem iw x) := by
+            funext x
+            simp [normalizedAlphaFunction, c, mul_comm]
+          rw [hmul_eq, MeasureTheory.integral_const_mul]
+          rw [HaarSystem.integral_wavelet_eq_zero G F.toHaarSystem iw]
+          simp
+      | wavelet jw =>
+          have hiw_jw : iw ≠ jw := by
+            intro h
+            apply hij
+            cases h
+            rfl
+          simpa [FullHaarSystem.function]
+            using HaarSystem.integral_mul_wavelet_eq_zero_of_ne G F.toHaarSystem iw jw hiw_jw
 
 end UnbalancedHaarWavelet
