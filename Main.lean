@@ -1,3 +1,5 @@
 import UnbalancedHaarWavelet.GridDefinition
 import UnbalancedHaarWavelet.HaarWaveletDefinition
 import UnbalancedHaarWavelet.GoodGridDefinition
+import UnbalancedHaarWavelet.LinearCombinations
+import UnbalancedHaarWavelet.Ortogonality
