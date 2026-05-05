@@ -900,7 +900,7 @@ theorem normalized_indicator_child_eq_cell_add_sum_chain
 
 /-- The branch-sum expansion of the normalized child indicator minus the normalized parent
 indicator, indexed by all refinement-tree branches whose support contains `s`. -/
-noncomputable def sumMinus
+noncomputable def sumDownSubTree_normed_indicator
     (G : Grid (α := α)) [DecidableEq (Set α)]
     (H : HaarSystem (G := G))
     {level : ℕ} {cell : Set α} (hcell : cell ∈ G.grid.partitions level)
@@ -917,16 +917,19 @@ noncomputable def sumMinus
             (G.μ (branchSupport (Combinatorial_Support B))).toReal))
         * haarWavelet G.μ (branchSupport B.1) (branchSupport B.2) x
 
-/-- Difference of the branch-sum expansions associated with two grid elements. -/
-noncomputable def sumMinusDiff
+
+noncomputable def sumDown_normed_indicator
     (G : Grid (α := α)) [DecidableEq (Set α)]
     (H : HaarSystem (G := G))
-    {level : ℕ} {cell : Set α} (hcell : cell ∈ G.grid.partitions level)
-    (s t : Set α) : α → ℝ :=
-  fun x => sumMinus G H hcell s x - sumMinus G H hcell t x
+    (s : Set α) (level : ℕ) (_hs : s ∈ G.grid.partitions level) : α → ℝ :=
+  fun x =>
+    ∑ i ∈ Finset.range level,
+      ∑ c ∈ (G.grid.partitions i).attach.filter (fun c => s ⊆ c.1),
+        sumDownSubTree_normed_indicator G H c.2 s x
+
+
 
 theorem normalized_indicator_child_eq_cell_add_sum_chain_2
-
     (G : Grid (α := α)) [DecidableEq (Set α)]
     (H : HaarSystem (G := G))
     {level : ℕ} {cell s : Set α} (hcell : cell ∈ G.grid.partitions level)
@@ -936,7 +939,7 @@ theorem normalized_indicator_child_eq_cell_add_sum_chain_2
       -
       Set.indicator cell (fun _ => 1 / (G.μ cell).toReal) x)
       =
-    sumMinus G H hcell s := by
+    sumDownSubTree_normed_indicator G H hcell s := by
   classical
   let T := H.binaryRefinement.tree level cell hcell
   let F : Finset (Finset (Set α) × Finset (Set α)) :=
@@ -1219,6 +1222,186 @@ theorem normalized_indicator_child_eq_cell_add_sum_chain_2
                 (G.μ (branchSupport (Combinatorial_Support B))).toReal))
             * haarWavelet G.μ (branchSupport B.1) (branchSupport B.2) x) := by
         rfl
+
+theorem Normalized_indicator_in_Haar_Wavelets_span
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G))
+    (s : Set α) (level : ℕ) (hs : s ∈ G.grid.partitions level) :
+    (fun x => Set.indicator s (fun _ => 1 / (G.μ s).toReal) x)
+      =
+    (fun x => normalizedAlphaFunction G x + sumDown_normed_indicator G H s level hs x) := by
+  classical
+  induction level generalizing s with
+  | zero =>
+      have hs_univ : s = Set.univ := by
+        simpa [G.grid.first_partition_eq_univ] using hs
+      funext x
+      simp [sumDown_normed_indicator, normalizedAlphaFunction, hs_univ]
+  | succ n ih =>
+      obtain ⟨parent, hparent, hs_parent⟩ := G.grid.nested n s hs
+      have hs_child : s ∈ G.children n parent := ⟨hs, hs_parent⟩
+      have hstep :=
+        normalized_indicator_child_eq_cell_add_sum_chain_2
+          (G := G) (H := H) (hcell := hparent) hs_child
+      have hparent_exp := ih parent hparent
+      have htarget_support_iff :
+          ∀ {i : ℕ}, i < n →
+          ∀ (c : {c : Set α // c ∈ G.grid.partitions i}),
+          parent ⊆ c.1 →
+          ∀ {A : Finset (Set α)},
+          (∀ d, d ∈ A → d ∈ G.children i c.1) →
+          (s ⊆ branchSupport A ↔ parent ⊆ branchSupport A) := by
+        intro i hi_lt c hc_parent A hA_childs
+        constructor
+        · intro hsA
+          obtain ⟨y, hy⟩ := G.partition_nonempty (n + 1) s hs
+          have hyA : y ∈ branchSupport A := hsA hy
+          rcases (by simpa [branchSupport] using hyA) with ⟨d, hdA, hyd⟩
+          have hd_child : d ∈ G.children i c.1 := hA_childs d hdA
+          have hi1_le_n : i + 1 ≤ n := by omega
+          have hparent_d_or_disj :=
+            G.partition_subset_or_disjoint_of_le (i + 1) n hi1_le_n
+              d hd_child.1 parent hparent
+          rcases hparent_d_or_disj with hparent_d | hparent_disj_d
+          · exact hparent_d.trans (subset_branchSupport_of_mem hdA)
+          · have hy_parent : y ∈ parent := hs_parent hy
+            exact False.elim ((Set.disjoint_left.mp hparent_disj_d) hy_parent hyd)
+        · intro hpA
+          exact hs_parent.trans hpA
+      have hsubtree_same :
+          ∀ {i : ℕ}, i < n →
+          ∀ (c : {c : Set α // c ∈ G.grid.partitions i}),
+          parent ⊆ c.1 →
+          sumDownSubTree_normed_indicator G H c.2 s =
+            sumDownSubTree_normed_indicator G H c.2 parent := by
+        intro i hi_lt c hc_parent
+        funext x
+        let Tanc := H.binaryRefinement.tree i c.1 c.2
+        unfold sumDownSubTree_normed_indicator
+        apply Finset.sum_congr
+        · ext B
+          constructor
+          · intro hBf
+            have hB : B ∈ Tanc.Branches := (Finset.mem_filter.mp hBf).1
+            have hsB : s ⊆ branchSupport (Combinatorial_Support B) :=
+              (Finset.mem_filter.mp hBf).2
+            have hB_childs :
+                ∀ d, d ∈ Combinatorial_Support B → d ∈ G.children i c.1 := by
+              intro d hd
+              have hchilds := Tanc.TreeStructureChilds B hB
+              rcases Finset.mem_union.mp (by simpa [Combinatorial_Support] using hd) with hd1 | hd2
+              · exact (H.binaryRefinement.childs_are_children i c.1 c.2 d).1 (hchilds.1 hd1)
+              · exact (H.binaryRefinement.childs_are_children i c.1 c.2 d).1 (hchilds.2 hd2)
+            exact Finset.mem_filter.mpr
+              ⟨hB, (htarget_support_iff hi_lt c hc_parent hB_childs).1 hsB⟩
+          · intro hBf
+            have hB : B ∈ Tanc.Branches := (Finset.mem_filter.mp hBf).1
+            have hpB : parent ⊆ branchSupport (Combinatorial_Support B) :=
+              (Finset.mem_filter.mp hBf).2
+            have hB_childs :
+                ∀ d, d ∈ Combinatorial_Support B → d ∈ G.children i c.1 := by
+              intro d hd
+              have hchilds := Tanc.TreeStructureChilds B hB
+              rcases Finset.mem_union.mp (by simpa [Combinatorial_Support] using hd) with hd1 | hd2
+              · exact (H.binaryRefinement.childs_are_children i c.1 c.2 d).1 (hchilds.1 hd1)
+              · exact (H.binaryRefinement.childs_are_children i c.1 c.2 d).1 (hchilds.2 hd2)
+            exact Finset.mem_filter.mpr
+              ⟨hB, (htarget_support_iff hi_lt c hc_parent hB_childs).2 hpB⟩
+        · intro B hBf
+          have hB : B ∈ Tanc.Branches := (Finset.mem_filter.mp hBf).1
+          have hleft_childs : ∀ d, d ∈ B.1 → d ∈ G.children i c.1 := by
+            intro d hd
+            exact (H.binaryRefinement.childs_are_children i c.1 c.2 d).1
+              ((Tanc.TreeStructureChilds B hB).1 hd)
+          have hleft_iff :
+              s ⊆ branchSupport B.1 ↔ parent ⊆ branchSupport B.1 :=
+            htarget_support_iff hi_lt c hc_parent hleft_childs
+          by_cases hsleft : s ⊆ branchSupport B.1
+          · have hpleft : parent ⊆ branchSupport B.1 := hleft_iff.1 hsleft
+            simp [hsleft, hpleft]
+          · have hpnot : ¬ parent ⊆ branchSupport B.1 := by
+              intro hpleft
+              exact hsleft (hleft_iff.2 hpleft)
+            simp [hsleft, hpnot]
+      have hsum_succ :
+          sumDown_normed_indicator G H s (n + 1) hs
+            =
+          (fun x =>
+            sumDown_normed_indicator G H parent n hparent x
+            + sumDownSubTree_normed_indicator G H hparent s x) := by
+        funext x
+        simp [sumDown_normed_indicator, Finset.sum_range_succ]
+        congr 1
+        · apply Finset.sum_congr rfl
+          intro i hi
+          have hi_lt_n : i < n := by simpa [Finset.mem_range] using hi
+          apply Finset.sum_congr
+          · ext c
+            simp only [Finset.mem_filter, Finset.mem_attach, true_and]
+            constructor
+            · intro hs_c
+              have hi_le_n : i ≤ n := Nat.le_of_lt hi_lt_n
+              have hpc_or_disj :=
+                G.partition_subset_or_disjoint_of_le i n hi_le_n c.1 c.2 parent hparent
+              rcases hpc_or_disj with hp_sub_c | hp_disj_c
+              · exact hp_sub_c
+              · obtain ⟨y, hy⟩ := G.partition_nonempty (n + 1) s hs
+                have hy_parent : y ∈ parent := hs_parent hy
+                have hy_c : y ∈ c.1 := hs_c hy
+                exact False.elim ((Set.disjoint_left.mp hp_disj_c) hy_parent hy_c)
+            · intro hp_c
+              exact hs_parent.trans hp_c
+          · intro c hc
+            have hc_parent : parent ⊆ c.1 := by
+              exact (Finset.mem_filter.mp hc).2
+            exact congrFun (hsubtree_same hi_lt_n c hc_parent) x
+        · have hfilter_singleton :
+            ((G.grid.partitions n).attach.filter (fun c => s ⊆ c.1)) =
+              {⟨parent, hparent⟩} := by
+            ext c
+            simp only [Finset.mem_filter, Finset.mem_attach, true_and, Finset.mem_singleton]
+            constructor
+            · intro hs_c
+              apply Subtype.ext
+              have hc_eq_parent : c.1 = parent := by
+                by_contra hne
+                have hdisj := G.grid.disjoint n c.1 parent c.2 hparent hne
+                obtain ⟨y, hy⟩ := G.partition_nonempty (n + 1) s hs
+                have hy_c : y ∈ c.1 := hs_c hy
+                have hy_parent : y ∈ parent := hs_parent hy
+                exact (Set.disjoint_left.mp hdisj hy_c hy_parent).elim
+              exact hc_eq_parent
+            · intro hc_eq
+              rw [hc_eq]
+              exact hs_parent
+          rw [hfilter_singleton]
+          simp
+      funext x
+      have hstep_x := congrFun hstep x
+      have hparent_x := congrFun hparent_exp x
+      have hsum_x := congrFun hsum_succ x
+      rw [hsum_x]
+      calc
+        Set.indicator s (fun _ => 1 / (G.μ s).toReal) x
+            =
+          Set.indicator parent (fun _ => 1 / (G.μ parent).toReal) x
+            +
+          (Set.indicator s (fun _ => 1 / (G.μ s).toReal) x
+            - Set.indicator parent (fun _ => 1 / (G.μ parent).toReal) x) := by
+            ring
+        _ =
+          (normalizedAlphaFunction G x + sumDown_normed_indicator G H parent n hparent x)
+            + sumDownSubTree_normed_indicator G H hparent s x := by
+            rw [hstep_x, hparent_x]
+        _ =
+          normalizedAlphaFunction G x
+            + (sumDown_normed_indicator G H parent n hparent x
+              + sumDownSubTree_normed_indicator G H hparent s x) := by
+            ring
+
+
+
+
 
 /-- If `s` is a child of the grid cell `cell`, then the characteristic function of `s`
 belongs to the linear span of the characteristic function of `cell` together with the Haar
