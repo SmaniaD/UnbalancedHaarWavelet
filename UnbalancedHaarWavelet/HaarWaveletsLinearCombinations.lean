@@ -5,10 +5,13 @@ import Mathlib.MeasureTheory.Function.L2Space
 import Mathlib.Analysis.InnerProductSpace.l2Space
 import Mathlib.MeasureTheory.Function.AEEqOfIntegral
 import Mathlib.Algebra.Module.Submodule.Basic
+import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 import UnbalancedHaarWavelet.GridDefinition
 import UnbalancedHaarWavelet.HaarWaveletsDefinition
 
 namespace UnbalancedHaarWavelet
+
+open scoped BigOperators
 
 variable {α : Type*} [MeasurableSpace α]
 
@@ -169,6 +172,74 @@ lemma indicator_right_eq_union_indicator_sub_mul_haarWavelet
         exact hx.elim hxA hxB
       simp [haarWavelet, hxA, hxB, hxUnion]
 
+/-- Normalized version of the left refinement identity:
+`1_A / μ(A)` is `1_{A ∪ B} / (μ(A)+μ(B))` plus an explicit multiple of the
+Haar wavelet associated with `(A, B)`. -/
+lemma normalized_indicator_left_eq_union_add_mul_haarWavelet
+    (μ : MeasureTheory.Measure α) (A B : Set α)
+    (hAB : Disjoint A B)
+    (hA_ne : (μ A).toReal ≠ 0)
+    (hB_ne : (μ B).toReal ≠ 0)
+    (hsum_ne : (μ A).toReal + (μ B).toReal ≠ 0) :
+    (fun x => Set.indicator A (fun _ => 1 / (μ A).toReal) x)
+      =
+    (fun x =>
+      Set.indicator (A ∪ B)
+        (fun _ => 1 / ((μ A).toReal + (μ B).toReal)) x
+      +
+      ((μ B).toReal / ((μ A).toReal + (μ B).toReal)) *
+        haarWavelet μ A B x) := by
+  funext x
+  have hAB' := Set.disjoint_left.mp hAB
+  by_cases hxA : x ∈ A
+  · have hxB : x ∉ B := by
+      intro hxB
+      exact (hAB' hxA hxB).elim
+    simp [haarWavelet, hxA, hxB]
+    field_simp [hA_ne, hsum_ne]
+  · by_cases hxB : x ∈ B
+    · simp [haarWavelet, hxA, hxB]
+      field_simp [hB_ne, hsum_ne]
+      ring
+    · have hxUnion : x ∉ A ∪ B := by
+        intro hx
+        exact hx.elim hxA hxB
+      simp [haarWavelet, hxA, hxB, hxUnion]
+
+/-- Normalized version of the right refinement identity.  The coefficient of the Haar wavelet
+has a minus sign because `haarWavelet μ A B` is negative on `B`. -/
+lemma normalized_indicator_right_eq_union_sub_mul_haarWavelet
+    (μ : MeasureTheory.Measure α) (A B : Set α)
+    (hAB : Disjoint A B)
+    (hA_ne : (μ A).toReal ≠ 0)
+    (hB_ne : (μ B).toReal ≠ 0)
+    (hsum_ne : (μ A).toReal + (μ B).toReal ≠ 0) :
+    (fun x => Set.indicator B (fun _ => 1 / (μ B).toReal) x)
+      =
+    (fun x =>
+      Set.indicator (A ∪ B)
+        (fun _ => 1 / ((μ A).toReal + (μ B).toReal)) x
+      -
+      ((μ A).toReal / ((μ A).toReal + (μ B).toReal)) *
+        haarWavelet μ A B x) := by
+  funext x
+  have hAB' := Set.disjoint_left.mp hAB
+  by_cases hxA : x ∈ A
+  · have hxB : x ∉ B := by
+      intro hxB
+      exact (hAB' hxA hxB).elim
+    simp [haarWavelet, hxA, hxB]
+    field_simp [hA_ne, hsum_ne]
+    ring
+  · by_cases hxB : x ∈ B
+    · simp [haarWavelet, hxA, hxB]
+      field_simp [hB_ne, hsum_ne]
+      ring
+    · have hxUnion : x ∉ A ∪ B := by
+        intro hx
+        exact hx.elim hxA hxB
+      simp [haarWavelet, hxA, hxB, hxUnion]
+
 /-- For a branch `r = (A, B)` in the refinement tree, the characteristic function of the
 support of `A` is the characteristic function of the support of `A ∪ B`, plus a scalar
 multiple of the Haar wavelet associated with `(A, B)`. -/
@@ -290,6 +361,520 @@ lemma LinearCombinationRefinementTreeBasicRight
   simpa [hsupport_union] using
     indicator_right_eq_union_indicator_sub_mul_haarWavelet
       G.μ (branchSupport r.1) (branchSupport r.2) hAB hA_ne hB_ne hsum_ne
+
+/-- Normalized left one-step identity for a refinement-tree branch. -/
+lemma NormalizedLinearCombinationRefinementTreeBasic
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G))
+    {level : ℕ} {cell : Set α} {hcell : cell ∈ G.grid.partitions level}
+    {r : Finset (Set α) × Finset (Set α)}
+    (hr : r ∈ (H.binaryRefinement.tree level cell hcell).Branches) :
+    (fun x =>
+      Set.indicator (branchSupport r.1)
+        (fun _ => 1 / (G.μ (branchSupport r.1)).toReal) x)
+      =
+    (fun x =>
+      Set.indicator (branchSupport (r.1 ∪ r.2))
+        (fun _ =>
+          1 / ((G.μ (branchSupport r.1)).toReal +
+            (G.μ (branchSupport r.2)).toReal)) x
+      +
+      ((G.μ (branchSupport r.2)).toReal /
+          ((G.μ (branchSupport r.1)).toReal +
+            (G.μ (branchSupport r.2)).toReal)) *
+        haarWavelet G.μ (branchSupport r.1) (branchSupport r.2) x) := by
+  let T := H.binaryRefinement.tree level cell hcell
+  have hchilds : r.1 ⊆ T.Childs ∧ r.2 ⊆ T.Childs :=
+    T.TreeStructureChilds r hr
+  have hA_part : ∀ s, s ∈ r.1 → s ∈ G.grid.partitions (level + 1) := by
+    intro s hs
+    exact (H.binaryRefinement.childs_are_children level cell hcell s).1 (hchilds.1 hs) |>.1
+  have hB_part : ∀ s, s ∈ r.2 → s ∈ G.grid.partitions (level + 1) := by
+    intro s hs
+    exact (H.binaryRefinement.childs_are_children level cell hcell s).1 (hchilds.2 hs) |>.1
+  have hA_pos_cells : ∀ s, s ∈ r.1 → 0 < G.μ s := by
+    intro s hs
+    exact G.positive_measure (level + 1) s (hA_part s hs)
+  have hB_pos_cells : ∀ s, s ∈ r.2 → 0 < G.μ s := by
+    intro s hs
+    exact G.positive_measure (level + 1) s (hB_part s hs)
+  have hA_pos : 0 < G.μ (branchSupport r.1) :=
+    measure_branchSupport_pos_of_nonempty G r.1 hA_pos_cells (T.NonemptyPairs r hr).1
+  have hB_pos : 0 < G.μ (branchSupport r.2) :=
+    measure_branchSupport_pos_of_nonempty G r.2 hB_pos_cells (T.NonemptyPairs r hr).2
+  letI : MeasureTheory.IsFiniteMeasure G.μ := G.isFinite
+  have hA_lt_top : G.μ (branchSupport r.1) < ⊤ :=
+    MeasureTheory.measure_lt_top (μ := G.μ) (branchSupport r.1)
+  have hB_lt_top : G.μ (branchSupport r.2) < ⊤ :=
+    MeasureTheory.measure_lt_top (μ := G.μ) (branchSupport r.2)
+  have hA_toReal_pos : 0 < (G.μ (branchSupport r.1)).toReal :=
+    ENNReal.toReal_pos (ne_of_gt hA_pos) hA_lt_top.ne
+  have hB_toReal_pos : 0 < (G.μ (branchSupport r.2)).toReal :=
+    ENNReal.toReal_pos (ne_of_gt hB_pos) hB_lt_top.ne
+  have hA_ne : (G.μ (branchSupport r.1)).toReal ≠ 0 := ne_of_gt hA_toReal_pos
+  have hB_ne : (G.μ (branchSupport r.2)).toReal ≠ 0 := ne_of_gt hB_toReal_pos
+  have hsum_ne :
+      (G.μ (branchSupport r.1)).toReal + (G.μ (branchSupport r.2)).toReal ≠ 0 :=
+    ne_of_gt (add_pos hA_toReal_pos hB_toReal_pos)
+  have hAB : Disjoint (branchSupport r.1) (branchSupport r.2) :=
+    disjoint_branchSupport_of_finset_disjoint G level r.1 r.2 hA_part hB_part
+      (T.DisjointComponents r hr)
+  have hsupport_union :
+      branchSupport (r.1 ∪ r.2) = branchSupport r.1 ∪ branchSupport r.2 :=
+    branchSupport_union r.1 r.2
+  simpa [hsupport_union] using
+    normalized_indicator_left_eq_union_add_mul_haarWavelet
+      G.μ (branchSupport r.1) (branchSupport r.2) hAB hA_ne hB_ne hsum_ne
+
+/-- Normalized right one-step identity for a refinement-tree branch. -/
+lemma NormalizedLinearCombinationRefinementTreeBasicRight
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G))
+    {level : ℕ} {cell : Set α} {hcell : cell ∈ G.grid.partitions level}
+    {r : Finset (Set α) × Finset (Set α)}
+    (hr : r ∈ (H.binaryRefinement.tree level cell hcell).Branches) :
+    (fun x =>
+      Set.indicator (branchSupport r.2)
+        (fun _ => 1 / (G.μ (branchSupport r.2)).toReal) x)
+      =
+    (fun x =>
+      Set.indicator (branchSupport (r.1 ∪ r.2))
+        (fun _ =>
+          1 / ((G.μ (branchSupport r.1)).toReal +
+            (G.μ (branchSupport r.2)).toReal)) x
+      -
+      ((G.μ (branchSupport r.1)).toReal /
+          ((G.μ (branchSupport r.1)).toReal +
+            (G.μ (branchSupport r.2)).toReal)) *
+        haarWavelet G.μ (branchSupport r.1) (branchSupport r.2) x) := by
+  let T := H.binaryRefinement.tree level cell hcell
+  have hchilds : r.1 ⊆ T.Childs ∧ r.2 ⊆ T.Childs :=
+    T.TreeStructureChilds r hr
+  have hA_part : ∀ s, s ∈ r.1 → s ∈ G.grid.partitions (level + 1) := by
+    intro s hs
+    exact (H.binaryRefinement.childs_are_children level cell hcell s).1 (hchilds.1 hs) |>.1
+  have hB_part : ∀ s, s ∈ r.2 → s ∈ G.grid.partitions (level + 1) := by
+    intro s hs
+    exact (H.binaryRefinement.childs_are_children level cell hcell s).1 (hchilds.2 hs) |>.1
+  have hA_pos_cells : ∀ s, s ∈ r.1 → 0 < G.μ s := by
+    intro s hs
+    exact G.positive_measure (level + 1) s (hA_part s hs)
+  have hB_pos_cells : ∀ s, s ∈ r.2 → 0 < G.μ s := by
+    intro s hs
+    exact G.positive_measure (level + 1) s (hB_part s hs)
+  have hA_pos : 0 < G.μ (branchSupport r.1) :=
+    measure_branchSupport_pos_of_nonempty G r.1 hA_pos_cells (T.NonemptyPairs r hr).1
+  have hB_pos : 0 < G.μ (branchSupport r.2) :=
+    measure_branchSupport_pos_of_nonempty G r.2 hB_pos_cells (T.NonemptyPairs r hr).2
+  letI : MeasureTheory.IsFiniteMeasure G.μ := G.isFinite
+  have hA_lt_top : G.μ (branchSupport r.1) < ⊤ :=
+    MeasureTheory.measure_lt_top (μ := G.μ) (branchSupport r.1)
+  have hB_lt_top : G.μ (branchSupport r.2) < ⊤ :=
+    MeasureTheory.measure_lt_top (μ := G.μ) (branchSupport r.2)
+  have hA_toReal_pos : 0 < (G.μ (branchSupport r.1)).toReal :=
+    ENNReal.toReal_pos (ne_of_gt hA_pos) hA_lt_top.ne
+  have hB_toReal_pos : 0 < (G.μ (branchSupport r.2)).toReal :=
+    ENNReal.toReal_pos (ne_of_gt hB_pos) hB_lt_top.ne
+  have hA_ne : (G.μ (branchSupport r.1)).toReal ≠ 0 := ne_of_gt hA_toReal_pos
+  have hB_ne : (G.μ (branchSupport r.2)).toReal ≠ 0 := ne_of_gt hB_toReal_pos
+  have hsum_ne :
+      (G.μ (branchSupport r.1)).toReal + (G.μ (branchSupport r.2)).toReal ≠ 0 :=
+    ne_of_gt (add_pos hA_toReal_pos hB_toReal_pos)
+  have hAB : Disjoint (branchSupport r.1) (branchSupport r.2) :=
+    disjoint_branchSupport_of_finset_disjoint G level r.1 r.2 hA_part hB_part
+      (T.DisjointComponents r hr)
+  have hsupport_union :
+      branchSupport (r.1 ∪ r.2) = branchSupport r.1 ∪ branchSupport r.2 :=
+    branchSupport_union r.1 r.2
+  simpa [hsupport_union] using
+    normalized_indicator_right_eq_union_sub_mul_haarWavelet
+      G.μ (branchSupport r.1) (branchSupport r.2) hAB hA_ne hB_ne hsum_ne
+
+/-- For a refinement-tree branch, the real measure of the union support is the sum of the
+real measures of the two side supports. -/
+lemma branchSupport_union_measure_toReal_eq_add
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G))
+    {level : ℕ} {cell : Set α} {hcell : cell ∈ G.grid.partitions level}
+    {r : Finset (Set α) × Finset (Set α)}
+    (hr : r ∈ (H.binaryRefinement.tree level cell hcell).Branches) :
+    (G.μ (branchSupport (r.1 ∪ r.2))).toReal
+      =
+    (G.μ (branchSupport r.1)).toReal + (G.μ (branchSupport r.2)).toReal := by
+  let T := H.binaryRefinement.tree level cell hcell
+  have hchilds : r.1 ⊆ T.Childs ∧ r.2 ⊆ T.Childs :=
+    T.TreeStructureChilds r hr
+  have hA_part : ∀ s, s ∈ r.1 → s ∈ G.grid.partitions (level + 1) := by
+    intro s hs
+    exact (H.binaryRefinement.childs_are_children level cell hcell s).1 (hchilds.1 hs) |>.1
+  have hB_part : ∀ s, s ∈ r.2 → s ∈ G.grid.partitions (level + 1) := by
+    intro s hs
+    exact (H.binaryRefinement.childs_are_children level cell hcell s).1 (hchilds.2 hs) |>.1
+  have hAB : Disjoint (branchSupport r.1) (branchSupport r.2) :=
+    disjoint_branchSupport_of_finset_disjoint G level r.1 r.2 hA_part hB_part
+      (T.DisjointComponents r hr)
+  have hB_meas : MeasurableSet (branchSupport r.2) :=
+    measurableSet_branchSupport_of_partition G level r.2 hB_part
+  letI : MeasureTheory.IsFiniteMeasure G.μ := G.isFinite
+  have hA_ne_top : G.μ (branchSupport r.1) ≠ ⊤ :=
+    (MeasureTheory.measure_lt_top (μ := G.μ) (branchSupport r.1)).ne
+  have hB_ne_top : G.μ (branchSupport r.2) ≠ ⊤ :=
+    (MeasureTheory.measure_lt_top (μ := G.μ) (branchSupport r.2)).ne
+  calc
+    (G.μ (branchSupport (r.1 ∪ r.2))).toReal
+        = (G.μ (branchSupport r.1 ∪ branchSupport r.2)).toReal := by
+            rw [branchSupport_union]
+    _ = (G.μ (branchSupport r.1) + G.μ (branchSupport r.2)).toReal := by
+            rw [MeasureTheory.measure_union hAB hB_meas]
+    _ = (G.μ (branchSupport r.1)).toReal + (G.μ (branchSupport r.2)).toReal := by
+            exact ENNReal.toReal_add hA_ne_top hB_ne_top
+
+/-- Normalized left one-step identity with the parent denominator written as the measure of the
+parent support. -/
+lemma NormalizedLinearCombinationRefinementTreeBasic_parent
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G))
+    {level : ℕ} {cell : Set α} {hcell : cell ∈ G.grid.partitions level}
+    {r : Finset (Set α) × Finset (Set α)}
+    (hr : r ∈ (H.binaryRefinement.tree level cell hcell).Branches) :
+    (fun x =>
+      Set.indicator (branchSupport r.1)
+        (fun _ => 1 / (G.μ (branchSupport r.1)).toReal) x)
+      =
+    (fun x =>
+      Set.indicator (branchSupport (r.1 ∪ r.2))
+        (fun _ => 1 / (G.μ (branchSupport (r.1 ∪ r.2))).toReal) x
+      +
+      ((G.μ (branchSupport r.2)).toReal /
+          (G.μ (branchSupport (r.1 ∪ r.2))).toReal) *
+        haarWavelet G.μ (branchSupport r.1) (branchSupport r.2) x) := by
+  have hbasic := NormalizedLinearCombinationRefinementTreeBasic
+    (G := G) (H := H) (level := level) (cell := cell) (hcell := hcell) hr
+  have hμ := branchSupport_union_measure_toReal_eq_add
+    (G := G) (H := H) (level := level) (cell := cell) (hcell := hcell) hr
+  simpa [hμ] using hbasic
+
+/-- Normalized right one-step identity with the parent denominator written as the measure of the
+parent support. -/
+lemma NormalizedLinearCombinationRefinementTreeBasicRight_parent
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G))
+    {level : ℕ} {cell : Set α} {hcell : cell ∈ G.grid.partitions level}
+    {r : Finset (Set α) × Finset (Set α)}
+    (hr : r ∈ (H.binaryRefinement.tree level cell hcell).Branches) :
+    (fun x =>
+      Set.indicator (branchSupport r.2)
+        (fun _ => 1 / (G.μ (branchSupport r.2)).toReal) x)
+      =
+    (fun x =>
+      Set.indicator (branchSupport (r.1 ∪ r.2))
+        (fun _ => 1 / (G.μ (branchSupport (r.1 ∪ r.2))).toReal) x
+      -
+      ((G.μ (branchSupport r.1)).toReal /
+          (G.μ (branchSupport (r.1 ∪ r.2))).toReal) *
+        haarWavelet G.μ (branchSupport r.1) (branchSupport r.2) x) := by
+  have hbasic := NormalizedLinearCombinationRefinementTreeBasicRight
+    (G := G) (H := H) (level := level) (cell := cell) (hcell := hcell) hr
+  have hμ := branchSupport_union_measure_toReal_eq_add
+    (G := G) (H := H) (level := level) (cell := cell) (hcell := hcell) hr
+  simpa [hμ] using hbasic
+
+/-- Explicit normalized expansion along the chain from the root of the binary refinement tree
+to the top `{s}`.  The sum over `i < n` records the ancestors of the final branch, and the
+last displayed term is the contribution of the final branch whose left or right side is `{s}`. -/
+theorem normalized_indicator_child_eq_cell_add_sum_chain
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G))
+    {level : ℕ} {cell s : Set α} (hcell : cell ∈ G.grid.partitions level)
+    (hs_child : s ∈ G.children level cell) :
+    ∃ n : ℕ, ∃ chain : ℕ → (Finset (Set α) × Finset (Set α)),
+      chain 0 = (H.binaryRefinement.tree level cell hcell).Root ∧
+      (({s} : Finset (Set α)) = (chain n).1 ∨ ({s} : Finset (Set α)) = (chain n).2) ∧
+      (∀ i ≤ n, chain i ∈ (H.binaryRefinement.tree level cell hcell).Branches) ∧
+      (∀ i < n,
+        Combinatorial_Support (chain (i + 1)) = (chain i).1 ∨
+        Combinatorial_Support (chain (i + 1)) = (chain i).2) ∧
+      (fun x => Set.indicator s (fun _ => 1 / (G.μ s).toReal) x)
+        =
+      (fun x =>
+        Set.indicator cell (fun _ => 1 / (G.μ cell).toReal) x
+        +
+        ∑ i ∈ Finset.range n,
+          (if Combinatorial_Support (chain (i + 1)) = (chain i).1 then
+              (G.μ (branchSupport (chain i).2)).toReal /
+                (G.μ (branchSupport (Combinatorial_Support (chain i)))).toReal
+            else
+              -((G.μ (branchSupport (chain i).1)).toReal /
+                (G.μ (branchSupport (Combinatorial_Support (chain i)))).toReal))
+            * haarWavelet G.μ (branchSupport (chain i).1) (branchSupport (chain i).2) x
+        +
+        (if ({s} : Finset (Set α)) = (chain n).1 then
+            (G.μ (branchSupport (chain n).2)).toReal /
+              (G.μ (branchSupport (Combinatorial_Support (chain n)))).toReal
+          else
+            -((G.μ (branchSupport (chain n).1)).toReal /
+              (G.μ (branchSupport (Combinatorial_Support (chain n)))).toReal))
+          * haarWavelet G.μ (branchSupport (chain n).1) (branchSupport (chain n).2) x) := by
+  classical
+  let T := H.binaryRefinement.tree level cell hcell
+  have hs_top : s ∈ T.Tops :=
+    (H.binaryRefinement.tops_are_children level cell hcell s).2 hs_child
+  rcases exists_chain_from_root_to_top (T := T) hs_top with
+    ⟨n, chain, hchain_zero, hchain_top, hchain_mem, hchain_step⟩
+  refine ⟨n, chain, hchain_zero, hchain_top, hchain_mem, hchain_step, ?_⟩
+  let coeff : ℕ → ℝ := fun i =>
+    if Combinatorial_Support (chain (i + 1)) = (chain i).1 then
+      (G.μ (branchSupport (chain i).2)).toReal /
+        (G.μ (branchSupport (Combinatorial_Support (chain i)))).toReal
+    else
+      -((G.μ (branchSupport (chain i).1)).toReal /
+        (G.μ (branchSupport (Combinatorial_Support (chain i)))).toReal)
+  have hancestor :
+      ∀ k, k ≤ n →
+        (fun x =>
+          Set.indicator (branchSupport (Combinatorial_Support (chain k)))
+            (fun _ =>
+              1 / (G.μ (branchSupport (Combinatorial_Support (chain k)))).toReal) x)
+          =
+        (fun x =>
+          Set.indicator cell (fun _ => 1 / (G.μ cell).toReal) x
+          +
+          ∑ i ∈ Finset.range k,
+            coeff i *
+              haarWavelet G.μ (branchSupport (chain i).1) (branchSupport (chain i).2) x) := by
+    intro k hk
+    induction k with
+    | zero =>
+        funext x
+        have hroot :
+            branchSupport (Combinatorial_Support (chain 0)) = cell := by
+          rw [hchain_zero]
+          exact branchSupport_root_eq_cell G H
+        simp [hroot]
+    | succ i ih =>
+        have hi_le : i ≤ n := by omega
+        have hi_lt : i < n := by omega
+        have hbranch_i : chain i ∈ T.Branches := hchain_mem i hi_le
+        have hparent_union :
+            branchSupport ((chain i).1 ∪ (chain i).2)
+              = branchSupport (Combinatorial_Support (chain i)) := by
+          rfl
+        rcases hchain_step i hi_lt with hleft | hright
+        · funext x
+          have hbasic := congrFun
+            (NormalizedLinearCombinationRefinementTreeBasic_parent
+              (G := G) (H := H) (level := level) (cell := cell) (hcell := hcell)
+              (r := chain i) hbranch_i) x
+          have hside :
+              branchSupport (Combinatorial_Support (chain (i + 1)))
+                = branchSupport (chain i).1 := by
+            rw [hleft]
+          have hparent := congrFun (ih hi_le) x
+          calc
+            Set.indicator (branchSupport (Combinatorial_Support (chain (i + 1))))
+                (fun _ =>
+                  1 / (G.μ (branchSupport (Combinatorial_Support (chain (i + 1))))).toReal) x
+                =
+              Set.indicator (branchSupport (chain i).1)
+                (fun _ => 1 / (G.μ (branchSupport (chain i).1)).toReal) x := by
+                simp [hside]
+            _ =
+              Set.indicator (branchSupport ((chain i).1 ∪ (chain i).2))
+                (fun _ => 1 / (G.μ (branchSupport ((chain i).1 ∪ (chain i).2))).toReal) x
+              +
+              ((G.μ (branchSupport (chain i).2)).toReal /
+                  (G.μ (branchSupport ((chain i).1 ∪ (chain i).2))).toReal) *
+                haarWavelet G.μ (branchSupport (chain i).1) (branchSupport (chain i).2) x := by
+                simpa using hbasic
+            _ =
+              Set.indicator cell (fun _ => 1 / (G.μ cell).toReal) x
+              +
+              ∑ j ∈ Finset.range (i + 1),
+                coeff j *
+                  haarWavelet G.μ (branchSupport (chain j).1) (branchSupport (chain j).2) x := by
+                rw [hparent_union]
+                rw [hparent]
+                simp [Finset.sum_range_succ, coeff, hleft]
+                ring_nf
+        · funext x
+          have hbasic := congrFun
+            (NormalizedLinearCombinationRefinementTreeBasicRight_parent
+              (G := G) (H := H) (level := level) (cell := cell) (hcell := hcell)
+              (r := chain i) hbranch_i) x
+          have hright_ne_left : (chain i).2 ≠ (chain i).1 := by
+            intro h
+            have hdisj := T.DisjointComponents (chain i) hbranch_i
+            obtain ⟨y, hy⟩ := (T.NonemptyPairs (chain i) hbranch_i).2
+            have hy_left : y ∈ (chain i).1 := by
+              simpa [h] using hy
+            exact Finset.disjoint_left.mp hdisj hy_left hy
+          have hnot_left :
+              ¬ Combinatorial_Support (chain (i + 1)) = (chain i).1 := by
+            intro h
+            exact hright_ne_left (by rw [← hright, h])
+          have hside :
+              branchSupport (Combinatorial_Support (chain (i + 1)))
+                = branchSupport (chain i).2 := by
+            rw [hright]
+          have hparent := congrFun (ih hi_le) x
+          calc
+            Set.indicator (branchSupport (Combinatorial_Support (chain (i + 1))))
+                (fun _ =>
+                  1 / (G.μ (branchSupport (Combinatorial_Support (chain (i + 1))))).toReal) x
+                =
+              Set.indicator (branchSupport (chain i).2)
+                (fun _ => 1 / (G.μ (branchSupport (chain i).2)).toReal) x := by
+                simp [hside]
+            _ =
+              Set.indicator (branchSupport ((chain i).1 ∪ (chain i).2))
+                (fun _ => 1 / (G.μ (branchSupport ((chain i).1 ∪ (chain i).2))).toReal) x
+              -
+              ((G.μ (branchSupport (chain i).1)).toReal /
+                  (G.μ (branchSupport ((chain i).1 ∪ (chain i).2))).toReal) *
+                haarWavelet G.μ (branchSupport (chain i).1) (branchSupport (chain i).2) x := by
+                simpa using hbasic
+            _ =
+              Set.indicator cell (fun _ => 1 / (G.μ cell).toReal) x
+              +
+              ∑ j ∈ Finset.range (i + 1),
+                coeff j *
+                  haarWavelet G.μ (branchSupport (chain j).1) (branchSupport (chain j).2) x := by
+                rw [hparent_union]
+                rw [hparent]
+                simp [Finset.sum_range_succ, coeff, hnot_left]
+                ring_nf
+  funext x
+  have hbranch_n : chain n ∈ T.Branches := hchain_mem n le_rfl
+  have hparent_n := congrFun (hancestor n le_rfl) x
+  have hparent_union :
+      branchSupport ((chain n).1 ∪ (chain n).2)
+        = branchSupport (Combinatorial_Support (chain n)) := by
+    rfl
+  rcases hchain_top with htop_left | htop_right
+  · have hbasic := congrFun
+      (NormalizedLinearCombinationRefinementTreeBasic_parent
+        (G := G) (H := H) (level := level) (cell := cell) (hcell := hcell)
+        (r := chain n) hbranch_n) x
+    have hsingle : branchSupport (chain n).1 = s := by
+      rw [← htop_left]
+      exact branchSupport_singleton s
+    calc
+      Set.indicator s (fun _ => 1 / (G.μ s).toReal) x
+          =
+        Set.indicator (branchSupport (chain n).1)
+          (fun _ => 1 / (G.μ (branchSupport (chain n).1)).toReal) x := by
+          simp [hsingle]
+      _ =
+        Set.indicator (branchSupport ((chain n).1 ∪ (chain n).2))
+          (fun _ => 1 / (G.μ (branchSupport ((chain n).1 ∪ (chain n).2))).toReal) x
+        +
+        ((G.μ (branchSupport (chain n).2)).toReal /
+            (G.μ (branchSupport ((chain n).1 ∪ (chain n).2))).toReal) *
+          haarWavelet G.μ (branchSupport (chain n).1) (branchSupport (chain n).2) x := by
+          simpa using hbasic
+      _ =
+        Set.indicator cell (fun _ => 1 / (G.μ cell).toReal) x
+        +
+        ∑ i ∈ Finset.range n,
+          (if Combinatorial_Support (chain (i + 1)) = (chain i).1 then
+              (G.μ (branchSupport (chain i).2)).toReal /
+                (G.μ (branchSupport (Combinatorial_Support (chain i)))).toReal
+            else
+              -((G.μ (branchSupport (chain i).1)).toReal /
+                (G.μ (branchSupport (Combinatorial_Support (chain i)))).toReal))
+            * haarWavelet G.μ (branchSupport (chain i).1) (branchSupport (chain i).2) x
+        +
+        (if ({s} : Finset (Set α)) = (chain n).1 then
+            (G.μ (branchSupport (chain n).2)).toReal /
+              (G.μ (branchSupport (Combinatorial_Support (chain n)))).toReal
+          else
+            -((G.μ (branchSupport (chain n).1)).toReal /
+              (G.μ (branchSupport (Combinatorial_Support (chain n)))).toReal))
+          * haarWavelet G.μ (branchSupport (chain n).1) (branchSupport (chain n).2) x := by
+          rw [hparent_union]
+          rw [hparent_n]
+          simp [coeff, htop_left]
+  · have hbasic := congrFun
+      (NormalizedLinearCombinationRefinementTreeBasicRight_parent
+        (G := G) (H := H) (level := level) (cell := cell) (hcell := hcell)
+        (r := chain n) hbranch_n) x
+    have hright_ne_left : (chain n).2 ≠ (chain n).1 := by
+      intro h
+      have hdisj := T.DisjointComponents (chain n) hbranch_n
+      obtain ⟨y, hy⟩ := (T.NonemptyPairs (chain n) hbranch_n).2
+      have hy_left : y ∈ (chain n).1 := by
+        simpa [h] using hy
+      exact Finset.disjoint_left.mp hdisj hy_left hy
+    have hnot_top_left : ¬ ({s} : Finset (Set α)) = (chain n).1 := by
+      intro h
+      exact hright_ne_left (by rw [← htop_right, h])
+    have hsingle : branchSupport (chain n).2 = s := by
+      rw [← htop_right]
+      exact branchSupport_singleton s
+    calc
+      Set.indicator s (fun _ => 1 / (G.μ s).toReal) x
+          =
+        Set.indicator (branchSupport (chain n).2)
+          (fun _ => 1 / (G.μ (branchSupport (chain n).2)).toReal) x := by
+          simp [hsingle]
+      _ =
+        Set.indicator (branchSupport ((chain n).1 ∪ (chain n).2))
+          (fun _ => 1 / (G.μ (branchSupport ((chain n).1 ∪ (chain n).2))).toReal) x
+        -
+        ((G.μ (branchSupport (chain n).1)).toReal /
+            (G.μ (branchSupport ((chain n).1 ∪ (chain n).2))).toReal) *
+          haarWavelet G.μ (branchSupport (chain n).1) (branchSupport (chain n).2) x := by
+          simpa using hbasic
+      _ =
+        Set.indicator cell (fun _ => 1 / (G.μ cell).toReal) x
+        +
+        ∑ i ∈ Finset.range n,
+          (if Combinatorial_Support (chain (i + 1)) = (chain i).1 then
+              (G.μ (branchSupport (chain i).2)).toReal /
+                (G.μ (branchSupport (Combinatorial_Support (chain i)))).toReal
+            else
+              -((G.μ (branchSupport (chain i).1)).toReal /
+                (G.μ (branchSupport (Combinatorial_Support (chain i)))).toReal))
+            * haarWavelet G.μ (branchSupport (chain i).1) (branchSupport (chain i).2) x
+        +
+        (if ({s} : Finset (Set α)) = (chain n).1 then
+            (G.μ (branchSupport (chain n).2)).toReal /
+              (G.μ (branchSupport (Combinatorial_Support (chain n)))).toReal
+          else
+            -((G.μ (branchSupport (chain n).1)).toReal /
+              (G.μ (branchSupport (Combinatorial_Support (chain n)))).toReal))
+          * haarWavelet G.μ (branchSupport (chain n).1) (branchSupport (chain n).2) x := by
+          rw [hparent_union]
+          rw [hparent_n]
+          simp [coeff, hnot_top_left]
+          ring_nf
+
+theorem normalized_indicator_child_eq_cell_add_sum_chain_2
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G))
+    {level : ℕ} {cell s : Set α} (hcell : cell ∈ G.grid.partitions level)
+    (hs_child : s ∈ G.children level cell) :
+    by
+      classical
+      exact
+        (fun x =>
+          Set.indicator s (fun _ => 1 / (G.μ s).toReal) x
+          -
+          Set.indicator cell (fun _ => 1 / (G.μ cell).toReal) x)
+          =
+        (fun x =>
+          ∑ B ∈
+            ((H.binaryRefinement.tree level cell hcell).Branches).filter
+              (fun B => s ⊆ branchSupport (Combinatorial_Support B)),
+            (if s ⊆ branchSupport B.1 then
+                (G.μ (branchSupport B.2)).toReal /
+                  (G.μ (branchSupport (Combinatorial_Support B))).toReal
+              else
+                -((G.μ (branchSupport B.1)).toReal /
+                  (G.μ (branchSupport (Combinatorial_Support B))).toReal))
+              * haarWavelet G.μ (branchSupport B.1) (branchSupport B.2) x) := by
+  classical
+  sorry
 
 /-- If `s` is a child of the grid cell `cell`, then the characteristic function of `s`
 belongs to the linear span of the characteristic function of `cell` together with the Haar
@@ -537,5 +1122,8 @@ theorem indicator_child_mem_span_cell_and_refinement_haarWavelets
       rw [← htop_right]
       exact branchSupport_singleton s
     simpa [hsingle] using hside_mem
+
+
+
 
 end UnbalancedHaarWavelet
