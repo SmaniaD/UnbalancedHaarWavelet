@@ -12,6 +12,7 @@ import UnbalancedHaarWavelet.HaarWaveletsDefinition
 namespace UnbalancedHaarWavelet
 
 open scoped BigOperators
+open scoped Classical
 
 variable {α : Type*} [MeasurableSpace α]
 
@@ -72,6 +73,54 @@ lemma branchSupport_childrenFinset_eq
     simpa [branchSupport] using
       (show x ∈ ⋃ t ∈ (G.childrenFinset level cell : Set (Set α)), t from
         Set.mem_iUnion.2 ⟨s, Set.mem_iUnion.2 ⟨hs_fin, hxs⟩⟩)
+
+/-- For a family of children of a fixed grid cell, a child `s` is contained in the union of
+that family iff it is one of its members. -/
+lemma child_subset_branchSupport_iff_mem
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    {level : ℕ} {cell s : Set α}
+    (hs_child : s ∈ G.children level cell)
+    {A : Finset (Set α)}
+    (hA_childs : ∀ t, t ∈ A → t ∈ G.children level cell) :
+    s ⊆ branchSupport A ↔ s ∈ A := by
+  constructor
+  · intro hs_sub
+    obtain ⟨x, hx⟩ := G.partition_nonempty (level + 1) s hs_child.1
+    have hx_union : x ∈ branchSupport A := hs_sub hx
+    rcases (by simpa [branchSupport] using hx_union) with ⟨t, htA, hxt⟩
+    have ht_child : t ∈ G.children level cell := hA_childs t htA
+    by_cases hst : s = t
+    · simpa [hst] using htA
+    · have hdisj : Disjoint s t :=
+        G.grid.disjoint (level + 1) s t hs_child.1 ht_child.1 hst
+      exact (Set.disjoint_left.mp hdisj hx hxt).elim
+  · intro hsA
+    exact subset_branchSupport_of_mem hsA
+
+omit [MeasurableSpace α] in
+/-- The combinatorial support of a branch cannot be contained in a singleton cell: both
+components of a branch are nonempty and disjoint. -/
+lemma branch_combinatorialSupport_not_subset_singleton
+    [DecidableEq (Set α)]
+    {T : BinaryTreeWithRootandTops (Set α)}
+    {B : Finset (Set α) × Finset (Set α)}
+    (hB : B ∈ T.Branches) (s : Set α) :
+    ¬ Combinatorial_Support B ⊆ ({s} : Finset (Set α)) := by
+  intro hsub
+  obtain ⟨u, hu⟩ := (T.NonemptyPairs B hB).1
+  obtain ⟨v, hv⟩ := (T.NonemptyPairs B hB).2
+  have hu_support : u ∈ Combinatorial_Support B := by
+    dsimp [Combinatorial_Support]
+    exact Finset.mem_union_left B.2 hu
+  have hv_support : v ∈ Combinatorial_Support B := by
+    dsimp [Combinatorial_Support]
+    exact Finset.mem_union_right B.1 hv
+  have hu_eq : u = s := by
+    simpa using hsub hu_support
+  have hv_eq : v = s := by
+    simpa using hsub hv_support
+  have hdisj := T.DisjointComponents B hB
+  exact Finset.disjoint_left.mp hdisj hu (by simpa [hu_eq, hv_eq] using hv)
 
 /-- The support of the root branch of the binary refinement tree of a grid cell is the cell. -/
 lemma branchSupport_root_eq_cell
@@ -849,32 +898,327 @@ theorem normalized_indicator_child_eq_cell_add_sum_chain
           simp [coeff, hnot_top_left]
           ring_nf
 
+/-- The branch-sum expansion of the normalized child indicator minus the normalized parent
+indicator, indexed by all refinement-tree branches whose support contains `s`. -/
+noncomputable def sumMinus
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G))
+    {level : ℕ} {cell : Set α} (hcell : cell ∈ G.grid.partitions level)
+    (s : Set α) : α → ℝ :=
+  fun x =>
+    ∑ B ∈
+      ((H.binaryRefinement.tree level cell hcell).Branches).filter
+        (fun B => s ⊆ branchSupport (Combinatorial_Support B)),
+      (if s ⊆ branchSupport B.1 then
+          (G.μ (branchSupport B.2)).toReal /
+            (G.μ (branchSupport (Combinatorial_Support B))).toReal
+        else
+          -((G.μ (branchSupport B.1)).toReal /
+            (G.μ (branchSupport (Combinatorial_Support B))).toReal))
+        * haarWavelet G.μ (branchSupport B.1) (branchSupport B.2) x
+
+/-- Difference of the branch-sum expansions associated with two grid elements. -/
+noncomputable def sumMinusDiff
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G))
+    {level : ℕ} {cell : Set α} (hcell : cell ∈ G.grid.partitions level)
+    (s t : Set α) : α → ℝ :=
+  fun x => sumMinus G H hcell s x - sumMinus G H hcell t x
+
 theorem normalized_indicator_child_eq_cell_add_sum_chain_2
+
     (G : Grid (α := α)) [DecidableEq (Set α)]
     (H : HaarSystem (G := G))
     {level : ℕ} {cell s : Set α} (hcell : cell ∈ G.grid.partitions level)
     (hs_child : s ∈ G.children level cell) :
-    by
-      classical
-      exact
-        (fun x =>
-          Set.indicator s (fun _ => 1 / (G.μ s).toReal) x
-          -
-          Set.indicator cell (fun _ => 1 / (G.μ cell).toReal) x)
-          =
-        (fun x =>
-          ∑ B ∈
-            ((H.binaryRefinement.tree level cell hcell).Branches).filter
-              (fun B => s ⊆ branchSupport (Combinatorial_Support B)),
-            (if s ⊆ branchSupport B.1 then
-                (G.μ (branchSupport B.2)).toReal /
-                  (G.μ (branchSupport (Combinatorial_Support B))).toReal
-              else
-                -((G.μ (branchSupport B.1)).toReal /
-                  (G.μ (branchSupport (Combinatorial_Support B))).toReal))
-              * haarWavelet G.μ (branchSupport B.1) (branchSupport B.2) x) := by
+    (fun x =>
+      Set.indicator s (fun _ => 1 / (G.μ s).toReal) x
+      -
+      Set.indicator cell (fun _ => 1 / (G.μ cell).toReal) x)
+      =
+    sumMinus G H hcell s := by
   classical
-  sorry
+  let T := H.binaryRefinement.tree level cell hcell
+  let F : Finset (Finset (Set α) × Finset (Set α)) :=
+    T.Branches.filter (fun B => s ⊆ branchSupport (Combinatorial_Support B))
+  let term : (Finset (Set α) × Finset (Set α)) → α → ℝ := fun B x =>
+    (if s ⊆ branchSupport B.1 then
+        (G.μ (branchSupport B.2)).toReal /
+          (G.μ (branchSupport (Combinatorial_Support B))).toReal
+      else
+        -((G.μ (branchSupport B.1)).toReal /
+          (G.μ (branchSupport (Combinatorial_Support B))).toReal))
+      * haarWavelet G.μ (branchSupport B.1) (branchSupport B.2) x
+  rcases normalized_indicator_child_eq_cell_add_sum_chain
+      (G := G) (H := H) hcell hs_child with
+    ⟨n, chain, hchain_zero, hchain_top, hchain_mem, hchain_step, hchain_sum⟩
+  have hsupport_mem_iff :
+      ∀ B, B ∈ T.Branches →
+        (s ⊆ branchSupport (Combinatorial_Support B) ↔
+          s ∈ Combinatorial_Support B) := by
+    intro B hB
+    have hB_childs : ∀ t, t ∈ Combinatorial_Support B → t ∈ G.children level cell := by
+      intro t ht
+      have hchilds := T.TreeStructureChilds B hB
+      rcases Finset.mem_union.mp (by simpa [Combinatorial_Support] using ht) with ht1 | ht2
+      · exact (H.binaryRefinement.childs_are_children level cell hcell t).1 (hchilds.1 ht1)
+      · exact (H.binaryRefinement.childs_are_children level cell hcell t).1 (hchilds.2 ht2)
+    exact child_subset_branchSupport_iff_mem G hs_child hB_childs
+  have hsingleton_subset_chain :
+      ∀ i, i ≤ n → ({s} : Finset (Set α)) ⊆ Combinatorial_Support (chain i) := by
+    intro i hi
+    have hend_subset :
+        Combinatorial_Support (chain n) ⊆ Combinatorial_Support (chain i) :=
+      chain_endpoint_support_subset (T := T) (p := chain n) (n := n) (c := chain)
+        rfl hchain_step i hi
+    have htop_subset_end :
+        ({s} : Finset (Set α)) ⊆ Combinatorial_Support (chain n) := by
+      rcases hchain_top with hleft | hright
+      · intro t ht
+        have ht_left : t ∈ (chain n).1 := by simpa [hleft] using ht
+        dsimp [Combinatorial_Support]
+        exact Finset.mem_union_left (chain n).2 ht_left
+      · intro t ht
+        have ht_right : t ∈ (chain n).2 := by simpa [hright] using ht
+        dsimp [Combinatorial_Support]
+        exact Finset.mem_union_right (chain n).1 ht_right
+    exact htop_subset_end.trans hend_subset
+  have hmem_filter_iff :
+      ∀ B, B ∈ F ↔ ∃ i ∈ Finset.range (n + 1), chain i = B := by
+    intro B
+    constructor
+    · intro hBF
+      have hB : B ∈ T.Branches := by
+        simpa [F] using (Finset.mem_filter.mp hBF).1
+      have hs_subset : s ⊆ branchSupport (Combinatorial_Support B) := by
+        simpa [F] using (Finset.mem_filter.mp hBF).2
+      have hs_mem_B : s ∈ Combinatorial_Support B :=
+        (hsupport_mem_iff B hB).1 hs_subset
+      have hs_mem_end : s ∈ Combinatorial_Support (chain n) := by
+        exact hsingleton_subset_chain n le_rfl (by simp)
+      by_cases hBn : B = chain n
+      · exact ⟨n, by simp, by simp [hBn]⟩
+      have hsupport_cases := T.SupportProperty (chain n) (hchain_mem n le_rfl) B hB
+        (by intro h; exact hBn h.symm)
+      rcases hsupport_cases with hdisj | hsub_left | hsub_right | hBsub_left | hBsub_right
+      · exact False.elim ((Finset.disjoint_left.mp hdisj) hs_mem_end hs_mem_B)
+      · have hsub :
+            Combinatorial_Support (chain n) ⊆ Combinatorial_Support B := by
+          exact hsub_left.trans Finset.subset_union_left
+        rcases (chain_from_root_exactly_support_containers
+            (T := T) (p := chain n) (q := B)
+            (hchain_mem n le_rfl) hB hchain_zero rfl hchain_mem hchain_step).2 hsub with
+          ⟨i, hi, hiB⟩
+        exact ⟨i, by simpa using hi, hiB⟩
+      · have hsub :
+            Combinatorial_Support (chain n) ⊆ Combinatorial_Support B := by
+          exact hsub_right.trans Finset.subset_union_right
+        rcases (chain_from_root_exactly_support_containers
+            (T := T) (p := chain n) (q := B)
+            (hchain_mem n le_rfl) hB hchain_zero rfl hchain_mem hchain_step).2 hsub with
+          ⟨i, hi, hiB⟩
+        exact ⟨i, by simpa using hi, hiB⟩
+      · rcases hchain_top with htop_left | htop_right
+        · have hB_singleton :
+              Combinatorial_Support B ⊆ ({s} : Finset (Set α)) := by
+            simpa [htop_left] using hBsub_left
+          exact (branch_combinatorialSupport_not_subset_singleton
+            (T := T) (B := B) hB s hB_singleton).elim
+        · have hs_in_right : s ∈ (chain n).2 := by simp [← htop_right]
+          have hs_in_left : s ∈ (chain n).1 := hBsub_left hs_mem_B
+          exact (Finset.disjoint_left.mp
+            (T.DisjointComponents (chain n) (hchain_mem n le_rfl)) hs_in_left hs_in_right).elim
+      · rcases hchain_top with htop_left | htop_right
+        · have hs_in_left : s ∈ (chain n).1 := by simp [← htop_left]
+          have hs_in_right : s ∈ (chain n).2 := hBsub_right hs_mem_B
+          exact (Finset.disjoint_left.mp
+            (T.DisjointComponents (chain n) (hchain_mem n le_rfl)) hs_in_left hs_in_right).elim
+        · have hB_singleton :
+              Combinatorial_Support B ⊆ ({s} : Finset (Set α)) := by
+            simpa [htop_right] using hBsub_right
+          exact (branch_combinatorialSupport_not_subset_singleton
+            (T := T) (B := B) hB s hB_singleton).elim
+    · rintro ⟨i, hi_range, rfl⟩
+      have hi : i ≤ n := by simpa [Finset.mem_range] using hi_range
+      have hbranch_i : chain i ∈ T.Branches := hchain_mem i hi
+      have hs_mem : s ∈ Combinatorial_Support (chain i) :=
+        hsingleton_subset_chain i hi (by simp)
+      have hs_subset :
+          s ⊆ branchSupport (Combinatorial_Support (chain i)) :=
+        (hsupport_mem_iff (chain i) hbranch_i).2 hs_mem
+      exact by
+        simp [F, hbranch_i, hs_subset]
+  have hchain_inj :
+      ∀ i ∈ Finset.range (n + 1), ∀ j ∈ Finset.range (n + 1),
+        chain i = chain j → i = j := by
+    intro i hi j hj hij
+    have hi_le : i ≤ n := by simpa [Finset.mem_range] using hi
+    have hj_le : j ≤ n := by simpa [Finset.mem_range] using hj
+    have huniq := chain_from_root_unique
+      (T := T) (p := chain i) (n1 := i) (n2 := j) (c1 := chain) (c2 := chain)
+      (hchain_mem i hi_le)
+      hchain_zero rfl
+      (fun k hk => hchain_mem k (by omega))
+      (fun k hk => hchain_step k (by omega))
+      hchain_zero (by simp [hij])
+      (fun k hk => hchain_mem k (by omega))
+      (fun k hk => hchain_step k (by omega))
+    exact huniq.1
+  have hsum_bij :
+      (fun x => ∑ i ∈ Finset.range (n + 1), term (chain i) x)
+        =
+      (fun x => ∑ B ∈ F, term B x) := by
+    funext x
+    refine Finset.sum_bij (fun i _ => chain i) ?_ ?_ ?_ ?_
+    · intro i hi
+      exact (hmem_filter_iff (chain i)).2 ⟨i, hi, rfl⟩
+    · intro i hi j hj hij
+      exact hchain_inj i hi j hj hij
+    · intro B hBF
+      rcases (hmem_filter_iff B).1 hBF with ⟨i, hi, hiB⟩
+      exact ⟨i, hi, hiB⟩
+    · intro i hi
+      rfl
+  have hcoeff_step :
+      ∀ i, i < n →
+        term (chain i) =
+          (fun x =>
+            (if Combinatorial_Support (chain (i + 1)) = (chain i).1 then
+                (G.μ (branchSupport (chain i).2)).toReal /
+                  (G.μ (branchSupport (Combinatorial_Support (chain i)))).toReal
+              else
+                -((G.μ (branchSupport (chain i).1)).toReal /
+                  (G.μ (branchSupport (Combinatorial_Support (chain i)))).toReal))
+              * haarWavelet G.μ (branchSupport (chain i).1) (branchSupport (chain i).2) x) := by
+    intro i hi
+    funext x
+    have hi_le : i ≤ n := by omega
+    have hbranch_i : chain i ∈ T.Branches := hchain_mem i hi_le
+    have hleft_iff :
+        s ⊆ branchSupport (chain i).1 ↔
+          Combinatorial_Support (chain (i + 1)) = (chain i).1 := by
+      constructor
+      · intro hs_left
+        rcases hchain_step i hi with hleft | hright
+        · exact hleft
+        · have hleft_childs : ∀ t, t ∈ (chain i).1 → t ∈ G.children level cell := by
+            intro t ht
+            exact (H.binaryRefinement.childs_are_children level cell hcell t).1
+              ((T.TreeStructureChilds (chain i) hbranch_i).1 ht)
+          have hs_mem_left : s ∈ (chain i).1 :=
+            (child_subset_branchSupport_iff_mem G hs_child hleft_childs).1 hs_left
+          have hs_mem_child : s ∈ Combinatorial_Support (chain (i + 1)) :=
+            hsingleton_subset_chain (i + 1) (by omega) (by simp)
+          have hs_mem_right : s ∈ (chain i).2 := by simpa [hright] using hs_mem_child
+          exact (Finset.disjoint_left.mp
+            (T.DisjointComponents (chain i) hbranch_i) hs_mem_left hs_mem_right).elim
+      · intro hleft
+        have hs_mem_child : s ∈ Combinatorial_Support (chain (i + 1)) :=
+          hsingleton_subset_chain (i + 1) (by omega) (by simp)
+        have hs_mem_left : s ∈ (chain i).1 := by simpa [hleft] using hs_mem_child
+        exact subset_branchSupport_of_mem hs_mem_left
+    simp [term, hleft_iff]
+  have hcoeff_last :
+      term (chain n) =
+        (fun x =>
+          (if ({s} : Finset (Set α)) = (chain n).1 then
+              (G.μ (branchSupport (chain n).2)).toReal /
+                (G.μ (branchSupport (Combinatorial_Support (chain n)))).toReal
+            else
+              -((G.μ (branchSupport (chain n).1)).toReal /
+                (G.μ (branchSupport (Combinatorial_Support (chain n)))).toReal))
+            * haarWavelet G.μ (branchSupport (chain n).1) (branchSupport (chain n).2) x) := by
+    funext x
+    have hbranch_n : chain n ∈ T.Branches := hchain_mem n le_rfl
+    have hleft_iff :
+        s ⊆ branchSupport (chain n).1 ↔ ({s} : Finset (Set α)) = (chain n).1 := by
+      constructor
+      · intro hs_left
+        rcases hchain_top with htop_left | htop_right
+        · exact htop_left
+        · have hleft_childs : ∀ t, t ∈ (chain n).1 → t ∈ G.children level cell := by
+            intro t ht
+            exact (H.binaryRefinement.childs_are_children level cell hcell t).1
+              ((T.TreeStructureChilds (chain n) hbranch_n).1 ht)
+          have hs_mem_left : s ∈ (chain n).1 :=
+            (child_subset_branchSupport_iff_mem G hs_child hleft_childs).1 hs_left
+          have hs_mem_right : s ∈ (chain n).2 := by simp [← htop_right]
+          exact (Finset.disjoint_left.mp
+            (T.DisjointComponents (chain n) hbranch_n) hs_mem_left hs_mem_right).elim
+      · intro htop_left
+        have hs_mem_left : s ∈ (chain n).1 := by simp [← htop_left]
+        exact subset_branchSupport_of_mem hs_mem_left
+    simp [term, hleft_iff]
+  have hsum_chain :
+      (fun x =>
+        ∑ i ∈ Finset.range n,
+          (if Combinatorial_Support (chain (i + 1)) = (chain i).1 then
+              (G.μ (branchSupport (chain i).2)).toReal /
+                (G.μ (branchSupport (Combinatorial_Support (chain i)))).toReal
+            else
+              -((G.μ (branchSupport (chain i).1)).toReal /
+                (G.μ (branchSupport (Combinatorial_Support (chain i)))).toReal))
+            * haarWavelet G.μ (branchSupport (chain i).1) (branchSupport (chain i).2) x
+        +
+        (if ({s} : Finset (Set α)) = (chain n).1 then
+            (G.μ (branchSupport (chain n).2)).toReal /
+              (G.μ (branchSupport (Combinatorial_Support (chain n)))).toReal
+          else
+            -((G.μ (branchSupport (chain n).1)).toReal /
+              (G.μ (branchSupport (Combinatorial_Support (chain n)))).toReal))
+          * haarWavelet G.μ (branchSupport (chain n).1) (branchSupport (chain n).2) x)
+        =
+      (fun x => ∑ i ∈ Finset.range (n + 1), term (chain i) x) := by
+    funext x
+    rw [Finset.sum_range_succ]
+    simp_rw [hcoeff_last]
+    congr 1
+    apply Finset.sum_congr rfl
+    intro i hi
+    have hi_lt : i < n := by simpa [Finset.mem_range] using hi
+    exact congrFun (hcoeff_step i hi_lt) x |>.symm
+  calc
+    (fun x =>
+      Set.indicator s (fun _ => 1 / (G.μ s).toReal) x
+      -
+      Set.indicator cell (fun _ => 1 / (G.μ cell).toReal) x)
+        =
+      (fun x =>
+        ∑ i ∈ Finset.range n,
+          (if Combinatorial_Support (chain (i + 1)) = (chain i).1 then
+              (G.μ (branchSupport (chain i).2)).toReal /
+                (G.μ (branchSupport (Combinatorial_Support (chain i)))).toReal
+            else
+              -((G.μ (branchSupport (chain i).1)).toReal /
+                (G.μ (branchSupport (Combinatorial_Support (chain i)))).toReal))
+            * haarWavelet G.μ (branchSupport (chain i).1) (branchSupport (chain i).2) x
+        +
+        (if ({s} : Finset (Set α)) = (chain n).1 then
+            (G.μ (branchSupport (chain n).2)).toReal /
+              (G.μ (branchSupport (Combinatorial_Support (chain n)))).toReal
+          else
+            -((G.μ (branchSupport (chain n).1)).toReal /
+              (G.μ (branchSupport (Combinatorial_Support (chain n)))).toReal))
+          * haarWavelet G.μ (branchSupport (chain n).1) (branchSupport (chain n).2) x) := by
+        funext x
+        have hx := congrFun hchain_sum x
+        rw [hx]
+        ring
+    _ = (fun x => ∑ i ∈ Finset.range (n + 1), term (chain i) x) := hsum_chain
+    _ = (fun x => ∑ B ∈ F, term B x) := hsum_bij
+    _ =
+      (fun x =>
+        ∑ B ∈
+          ((H.binaryRefinement.tree level cell hcell).Branches).filter
+            (fun B => s ⊆ branchSupport (Combinatorial_Support B)),
+          (if s ⊆ branchSupport B.1 then
+              (G.μ (branchSupport B.2)).toReal /
+                (G.μ (branchSupport (Combinatorial_Support B))).toReal
+            else
+              -((G.μ (branchSupport B.1)).toReal /
+                (G.μ (branchSupport (Combinatorial_Support B))).toReal))
+            * haarWavelet G.μ (branchSupport B.1) (branchSupport B.2) x) := by
+        rfl
 
 /-- If `s` is a child of the grid cell `cell`, then the characteristic function of `s`
 belongs to the linear span of the characteristic function of `cell` together with the Haar
