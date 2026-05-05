@@ -53,11 +53,7 @@ lemma LinearCombinationRefinementTreeBasic
     (H : HaarSystem (G := G))
     {level : ℕ} {cell : Set α} {hcell : cell ∈ G.grid.partitions level}
     {r : Finset (Set α) × Finset (Set α)}
-    (hr : r ∈ (H.binaryRefinement.tree level cell hcell).Branches)
-    (hA_ne : (G.μ (branchSupport r.1)).toReal ≠ 0)
-    (hB_ne : (G.μ (branchSupport r.2)).toReal ≠ 0)
-    (hsum_ne :
-      (G.μ (branchSupport r.1)).toReal + (G.μ (branchSupport r.2)).toReal ≠ 0) :
+    (hr : r ∈ (H.binaryRefinement.tree level cell hcell).Branches) :
     (fun x => Set.indicator (branchSupport r.1) (fun _ => (1 : ℝ)) x)
       =
     (fun x =>
@@ -77,6 +73,30 @@ lemma LinearCombinationRefinementTreeBasic
   have hB_part : ∀ s, s ∈ r.2 → s ∈ G.grid.partitions (level + 1) := by
     intro s hs
     exact (H.binaryRefinement.childs_are_children level cell hcell s).1 (hchilds.2 hs) |>.1
+  have hA_pos_cells : ∀ s, s ∈ r.1 → 0 < G.μ s := by
+    intro s hs
+    exact G.positive_measure (level + 1) s (hA_part s hs)
+  have hB_pos_cells : ∀ s, s ∈ r.2 → 0 < G.μ s := by
+    intro s hs
+    exact G.positive_measure (level + 1) s (hB_part s hs)
+  have hA_pos : 0 < G.μ (branchSupport r.1) :=
+    measure_branchSupport_pos_of_nonempty G r.1 hA_pos_cells (T.NonemptyPairs r hr).1
+  have hB_pos : 0 < G.μ (branchSupport r.2) :=
+    measure_branchSupport_pos_of_nonempty G r.2 hB_pos_cells (T.NonemptyPairs r hr).2
+  letI : MeasureTheory.IsFiniteMeasure G.μ := G.isFinite
+  have hA_lt_top : G.μ (branchSupport r.1) < ⊤ :=
+    MeasureTheory.measure_lt_top (μ := G.μ) (branchSupport r.1)
+  have hB_lt_top : G.μ (branchSupport r.2) < ⊤ :=
+    MeasureTheory.measure_lt_top (μ := G.μ) (branchSupport r.2)
+  have hA_toReal_pos : 0 < (G.μ (branchSupport r.1)).toReal :=
+    ENNReal.toReal_pos (ne_of_gt hA_pos) hA_lt_top.ne
+  have hB_toReal_pos : 0 < (G.μ (branchSupport r.2)).toReal :=
+    ENNReal.toReal_pos (ne_of_gt hB_pos) hB_lt_top.ne
+  have hA_ne : (G.μ (branchSupport r.1)).toReal ≠ 0 := ne_of_gt hA_toReal_pos
+  have hB_ne : (G.μ (branchSupport r.2)).toReal ≠ 0 := ne_of_gt hB_toReal_pos
+  have hsum_ne :
+      (G.μ (branchSupport r.1)).toReal + (G.μ (branchSupport r.2)).toReal ≠ 0 :=
+    ne_of_gt (add_pos hA_toReal_pos hB_toReal_pos)
   have hAB : Disjoint (branchSupport r.1) (branchSupport r.2) :=
     disjoint_branchSupport_of_finset_disjoint G level r.1 r.2 hA_part hB_part
       (T.DisjointComponents r hr)
