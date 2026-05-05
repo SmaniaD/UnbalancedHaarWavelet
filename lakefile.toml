@@ -1,6 +1,7 @@
 name = "UnbalancedHaarWavelet"
 version = "0.1.0"
 keywords = ["math"]
+defaultTargets = ["UnbalancedHaarWavelet"]
  
 
 [leanOptions]
