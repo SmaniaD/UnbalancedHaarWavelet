@@ -7,6 +7,12 @@ import Mathlib.MeasureTheory.Function.AEEqOfIntegral
 import UnbalancedHaarWavelet.GridDefinition
 import UnbalancedHaarWavelet.HaarWaveletsDefinition
 
+/-!
+Support laminarity and the induced binary-grid structure attached to a Haar system.
+-/
+set_option linter.style.header false
+set_option linter.style.openClassical false
+
 namespace UnbalancedHaarWavelet
 
 variable {α : Type*} [MeasurableSpace α]
@@ -1542,8 +1548,20 @@ lemma HaarSystem.Index.left_branchSupport_mem_nodesAtDeepness_succ
   rcases i with ⟨level, cell, hcell, branch⟩
   let T := H.binaryRefinement.tree level cell hcell
   by_cases hcard : 2 ≤ branch.1.1.card
-  · rcases LaminarFamiliesMaximalBinaryTrees.exists_branch_support_eq_left_of_two_le_card
-      (T := T) branch.2 hcard with ⟨q, hq, hq_support⟩
+  · have hchilds_eq_tops : T.Childs = T.Tops := by
+      ext s
+      constructor
+      · intro hs
+        exact (H.binaryRefinement.tops_are_children level cell hcell s).2
+          ((H.binaryRefinement.childs_are_children level cell hcell s).1 hs)
+      · intro hs
+        exact (H.binaryRefinement.childs_are_children level cell hcell s).2
+          ((H.binaryRefinement.tops_are_children level cell hcell s).1 hs)
+    have hbranch_mem : branch.1 ∈ T.Branches := by
+      simpa [T] using branch.2
+    rcases exists_branch_support_eq_left_of_two_le_card
+      (T := T) (p := branch.1) hbranch_mem hcard hchilds_eq_tops with
+        ⟨q, hq, hq_support⟩
     let j : H.Index :=
       { level := level
         cell := cell
@@ -1581,8 +1599,6 @@ lemma HaarSystem.Index.left_branchSupport_mem_nodesAtDeepness_succ
     refine ⟨level + 1, s, hs_part, ?_, ?_⟩
     · exact hs_support.symm
     ·
-      dsimp [HaarSystem.Index.deepness]
-      dsimp [HaarSystem.cellDeepness]
       set parent : Set α := Classical.choose (G.grid.nested level s hs_part) with hparent_def
       have hparent : parent ∈ G.grid.partitions level :=
         (Classical.choose_spec (G.grid.nested level s hs_part)).1
@@ -1622,6 +1638,7 @@ lemma HaarSystem.Index.left_branchSupport_mem_nodesAtDeepness_succ
       have hlen_eq :
           chainLength hparentBranch = chainLength branch.2 :=
         congrArg (fun hp' : branch.1 ∈ T.Branches => chainLength hp') hp
+      dsimp [HaarSystem.Index.deepness, HaarSystem.cellDeepness]
       rw [hcellDeep_eq, hlen_eq]
       rfl
 
@@ -1633,10 +1650,22 @@ lemma HaarSystem.Index.right_branchSupport_mem_nodesAtDeepness_succ
       H.nodesAtDeepness G (i.deepness G H + 1) := by
   classical
   rcases i with ⟨level, cell, hcell, branch⟩
-  let T := H.binaryRefinement.tree level cell hcell
   by_cases hcard : 2 ≤ branch.1.2.card
-  · rcases LaminarFamiliesMaximalBinaryTrees.exists_branch_support_eq_right_of_two_le_card
-      (T := T) branch.2 hcard with ⟨q, hq, hq_support⟩
+  · let T := H.binaryRefinement.tree level cell hcell
+    have hchilds_eq_tops : T.Childs = T.Tops := by
+      ext s
+      constructor
+      · intro hs
+        exact (H.binaryRefinement.tops_are_children level cell hcell s).2
+          ((H.binaryRefinement.childs_are_children level cell hcell s).1 hs)
+      · intro hs
+        exact (H.binaryRefinement.childs_are_children level cell hcell s).2
+          ((H.binaryRefinement.tops_are_children level cell hcell s).1 hs)
+    have hbranch_mem : branch.1 ∈ T.Branches := by
+      simpa [T] using branch.2
+    rcases exists_branch_support_eq_right_of_two_le_card
+      (T := T) (p := branch.1) hbranch_mem hcard hchilds_eq_tops with
+        ⟨q, hq, hq_support⟩
     let j : H.Index :=
       { level := level
         cell := cell
@@ -1653,6 +1682,7 @@ lemma HaarSystem.Index.right_branchSupport_mem_nodesAtDeepness_succ
       rw [hlen]
       omega
   · have hsingleton : ∃ s : Set α, branch.1.2 = {s} := by
+      let T := H.binaryRefinement.tree level cell hcell
       have hne : branch.1.2.Nonempty :=
         (T.NonemptyPairs branch.1 branch.2).2
       have hpos : 0 < branch.1.2.card := Finset.card_pos.mpr hne
