@@ -1522,27 +1522,7 @@ lemma chainLength_eq_succ_of_support_eq_right
   have huniq := ChainToRoot_unique hq hc0 hcend hcmem hcstep
   omega
 
-omit [MeasurableSpace α] in
-lemma exists_branch_support_eq_left_of_two_le_card
-    [DecidableEq (Set α)]
-    {T : BinaryTreeWithRootandTops (Set α)}
-    {p : Finset (Set α) × Finset (Set α)}
-    (hp : p ∈ T.Branches)
-    (hcard : 2 ≤ p.1.card)
-    (childs_eq_tops: T.Childs = T.Tops) :
-    ∃ q ∈ T.Branches, Combinatorial_Support q = p.1 := by
-  sorry
 
-omit [MeasurableSpace α] in
-lemma exists_branch_support_eq_right_of_two_le_card
-    [DecidableEq (Set α)]
-    {T : BinaryTreeWithRootandTops (Set α)}
-    {p : Finset (Set α) × Finset (Set α)}
-    (hp : p ∈ T.Branches)
-    (hcard : 2 ≤ p.2.card)
-    (childs_eq_tops: T.Childs = T.Tops) :
-    ∃ q ∈ T.Branches, Combinatorial_Support q = p.2 := by
-  sorry
 
 lemma HaarSystem.nodesAtDeepness_eq_or_disjoint
     (G : Grid (α := α)) [DecidableEq (Set α)]
@@ -1562,7 +1542,7 @@ lemma HaarSystem.Index.left_branchSupport_mem_nodesAtDeepness_succ
   rcases i with ⟨level, cell, hcell, branch⟩
   let T := H.binaryRefinement.tree level cell hcell
   by_cases hcard : 2 ≤ branch.1.1.card
-  · rcases exists_branch_support_eq_left_of_two_le_card
+  · rcases LaminarFamiliesMaximalBinaryTrees.exists_branch_support_eq_left_of_two_le_card
       (T := T) branch.2 hcard with ⟨q, hq, hq_support⟩
     let j : H.Index :=
       { level := level
@@ -1655,7 +1635,7 @@ lemma HaarSystem.Index.right_branchSupport_mem_nodesAtDeepness_succ
   rcases i with ⟨level, cell, hcell, branch⟩
   let T := H.binaryRefinement.tree level cell hcell
   by_cases hcard : 2 ≤ branch.1.2.card
-  · rcases exists_branch_support_eq_right_of_two_le_card
+  · rcases LaminarFamiliesMaximalBinaryTrees.exists_branch_support_eq_right_of_two_le_card
       (T := T) branch.2 hcard with ⟨q, hq, hq_support⟩
     let j : H.Index :=
       { level := level
