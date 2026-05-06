@@ -3,3 +3,5 @@ import UnbalancedHaarWavelet.HaarWaveletsDefinition
 import UnbalancedHaarWavelet.GoodGridDefinition
 import UnbalancedHaarWavelet.HaarWaveletsLinearCombinations
 import UnbalancedHaarWavelet.HaarWaveletsOrthogonality
+import UnbalancedHaarWavelet.HaarWaveletsDefinition
+import UnbalancedHaarWavelet.HaarWaveletsInducedBinaryGrid

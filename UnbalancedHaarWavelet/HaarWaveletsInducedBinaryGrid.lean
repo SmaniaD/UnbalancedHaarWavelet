@@ -1371,8 +1371,9 @@ variable {α : Type*} [MeasurableSpace α]
 /-- Estrutura da sequência de partições induzidas pelos suportes dos ramos do sistema de Haar.
     - A partição de nível zero é {univ}.
     - Nós de mesma profundidade são iguais ou disjuntos.
-    - Todo elemento da partição tem exatamente dois filhos na próxima partição.
-    - Se S = supp(A,B), então os filhos de S são supp A e supp B.
+    - Cada suporte S de profundidade n é suporte de algum branch p,
+      e seus dois lados A e B aparecem na profundidade n+1.
+    - Se S = supp(p), então S = A ∪ B com A e B disjuntos.
     - Novo: se (a,b) é branch de alguma subtree, então haarBranchSupport (a,b)
       pertence a alguma partição (nodesAtDeepness). -/
 theorem HaarSystem.binaryGrid_structure
@@ -1383,40 +1384,33 @@ theorem HaarSystem.binaryGrid_structure
     S₁ ∈ H.nodesAtDeepness G n → S₂ ∈ H.nodesAtDeepness G n →
     S₁ = S₂ ∨ Disjoint S₁ S₂) ∧
   (∀ n S, S ∈ H.nodesAtDeepness G n →
-    (∃! (A B : Set α),
-      A ≠ B ∧
-      A ∈ H.nodesAtDeepness G (n + 1) ∧
-      B ∈ H.nodesAtDeepness G (n + 1) ∧
-      A ⊆ S ∧ B ⊆ S ∧
-      S = A ∪ B ∧ Disjoint A B)) ∧
-  (∀ n S A B,
+    (∃! AB : Set α × Set α,
+      AB.1 ≠ AB.2 ∧
+      AB.1 ∈ H.nodesAtDeepness G (n + 1) ∧
+      AB.2 ∈ H.nodesAtDeepness G (n + 1) ∧
+      AB.1 ⊆ S ∧ AB.2 ⊆ S ∧
+      S = AB.1 ∪ AB.2 ∧ Disjoint AB.1 AB.2)) ∧
+  (∀ n S,
     S ∈ H.nodesAtDeepness G n →
-    ∃ (i : H.Index), i.branchSupport G H = S ∧
-      ∃ (p : Finset (Set α) × Finset (Set α)),
+    ∃ (i : H.Index) (p : Finset (Set α) × Finset (Set α)),
+        i.branchSupport G H = S ∧
         p ∈ (H.binaryRefinement.tree i.level i.cell i.hcell).Branches ∧
         S = haarBranchSupport p ∧
-        A = haarBranchSupport p.1 ∧ B = haarBranchSupport p.2 →
+        let A := branchSupport p.1
+        let B := branchSupport p.2
         A ∈ H.nodesAtDeepness G (n + 1) ∧ B ∈ H.nodesAtDeepness G (n + 1) ∧
+        A ⊆ S ∧ B ⊆ S ∧
         S = A ∪ B ∧ Disjoint A B) ∧
   (∀ level cell (hcell : cell ∈ G.grid.partitions level)
       (p : Finset (Set α) × Finset (Set α)),
       p ∈ (H.binaryRefinement.tree level cell hcell).Branches →
       ∃ n, haarBranchSupport p ∈ H.nodesAtDeepness G n) := by
-  constructor
-  · exact H.nodesAtDeepness_zero_eq_singleton G
-  constructor
-  · intro n S₁ S₂ hS₁ hS₂
-    sorry
-  constructor
-  · intro n S hS
-    sorry
-  constructor
-  · intro n S A B hS
-    sorry
-  · intro level cell hcell p hp
-    refine ⟨(HaarSystem.Index.deepness G H
-      ({ level := level, cell := cell, hcell := hcell, branch := ⟨p, hp⟩ } : H.Index)), ?_⟩
-    exact H.branchSupport_mem_nodesAtDeepness G
-      ({ level := level, cell := cell, hcell := hcell, branch := ⟨p, hp⟩ } : H.Index)
+  sorry
+
+
+
+
+
+
 
 end UnbalancedHaarWavelet
