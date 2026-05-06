@@ -175,6 +175,22 @@ structure HaarSystem (G : Grid (α := α)) [DecidableEq (Set α)] where
           p ∈ (binaryRefinement.tree n Q hQ).Branches}),
         haarWavelets n Q hQ p = haarWavelet G.μ (branchSupport p.1.1) (branchSupport p.1.2)
 
+/-- Every grid admits a Haar system, obtained by choosing a binary refinement of the
+children of each grid cell and assigning the canonical Haar wavelet to every branch. -/
+theorem exists_haarSystem
+    (G : Grid (α := α)) [DecidableEq (Set α)] :
+    Nonempty (HaarSystem (G := G)) := by
+  classical
+  obtain ⟨R⟩ := exists_binaryRefinementOfGrid (G := G)
+  exact ⟨{
+    binaryRefinement := R
+    haarWavelets := fun _ _ _ p =>
+      haarWavelet G.μ (branchSupport p.1.1) (branchSupport p.1.2)
+    haarWavelets_def := by
+      intro n Q hQ p
+      rfl
+  }⟩
+
 /-- The normalized father function `1_α / μ(α)`, written as indicator on `Set.univ`. -/
 noncomputable def normalizedAlphaFunction
     (G : Grid (α := α)) : α → ℝ :=
