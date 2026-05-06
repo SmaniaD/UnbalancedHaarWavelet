@@ -813,6 +813,74 @@ lemma HaarSystem.Index.branchSupport_subset_ambient_cell
   rcases i with ⟨level, cell, hcell, branch⟩
   exact H.haarBranchSupport_subset_cell G branch
 
+omit [MeasurableSpace α] in
+lemma branchSupport_left_subset_haarBranchSupport [DecidableEq (Set α)]
+    (p : Finset (Set α) × Finset (Set α)) :
+    branchSupport p.1 ⊆ haarBranchSupport p := by
+  simpa [haarBranchSupport, Combinatorial_Support] using
+    branchSupport_mono (Finset.subset_union_left (s₁ := p.1) (s₂ := p.2))
+
+omit [MeasurableSpace α] in
+lemma branchSupport_right_subset_haarBranchSupport [DecidableEq (Set α)]
+    (p : Finset (Set α) × Finset (Set α)) :
+    branchSupport p.2 ⊆ haarBranchSupport p := by
+  simpa [haarBranchSupport, Combinatorial_Support] using
+    branchSupport_mono (Finset.subset_union_right (s₁ := p.1) (s₂ := p.2))
+
+omit [MeasurableSpace α] in
+lemma haarBranchSupport_eq_union_branchSupport [DecidableEq (Set α)]
+    (p : Finset (Set α) × Finset (Set α)) :
+    haarBranchSupport p = branchSupport p.1 ∪ branchSupport p.2 := by
+  ext x
+  constructor
+  · intro hx
+    rcases (by
+      simpa [haarBranchSupport, branchSupport, Combinatorial_Support] using hx) with
+      ⟨s, hs, hxs⟩
+    rcases hs with hs₁ | hs₂
+    · left
+      exact by
+        simpa [branchSupport] using
+          (show x ∈ ⋃ t ∈ (p.1 : Set (Set α)), t from
+            Set.mem_iUnion.2 ⟨s, Set.mem_iUnion.2 ⟨hs₁, hxs⟩⟩)
+    · right
+      exact by
+        simpa [branchSupport] using
+          (show x ∈ ⋃ t ∈ (p.2 : Set (Set α)), t from
+            Set.mem_iUnion.2 ⟨s, Set.mem_iUnion.2 ⟨hs₂, hxs⟩⟩)
+  · intro hx
+    rcases hx with hx₁ | hx₂
+    · exact branchSupport_left_subset_haarBranchSupport p hx₁
+    · exact branchSupport_right_subset_haarBranchSupport p hx₂
+
+lemma HaarSystem.branchSupport_components_disjoint
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G))
+    {level : ℕ} {cell : Set α} {hcell : cell ∈ G.grid.partitions level}
+    (p : {r : Finset (Set α) × Finset (Set α) //
+      r ∈ (H.binaryRefinement.tree level cell hcell).Branches}) :
+    Disjoint (branchSupport p.1.1) (branchSupport p.1.2) := by
+  classical
+  let T := H.binaryRefinement.tree level cell hcell
+  have hp_childs : p.1.1 ⊆ T.Childs ∧ p.1.2 ⊆ T.Childs :=
+    T.TreeStructureChilds p.1 p.2
+  have hp1_part : ∀ s, s ∈ p.1.1 → s ∈ G.grid.partitions (level + 1) := by
+    intro s hs
+    exact (H.binaryRefinement.childs_are_children level cell hcell s).1
+      (hp_childs.1 hs) |>.1
+  have hp2_part : ∀ s, s ∈ p.1.2 → s ∈ G.grid.partitions (level + 1) := by
+    intro s hs
+    exact (H.binaryRefinement.childs_are_children level cell hcell s).1
+      (hp_childs.2 hs) |>.1
+  exact disjoint_branchSupport_of_finset_disjoint G level p.1.1 p.1.2
+    hp1_part hp2_part (T.DisjointComponents p.1 p.2)
+
+omit [MeasurableSpace α] in
+lemma branchSupport_singleton [DecidableEq (Set α)] (s : Set α) :
+    branchSupport ({s} : Finset (Set α)) = s := by
+  ext x
+  simp [branchSupport]
+
 lemma HaarSystem.Index.branchSupport_eq_cell_of_chainLength_zero
     (G : Grid (α := α)) [DecidableEq (Set α)]
     (H : HaarSystem (G := G))
@@ -1368,6 +1436,392 @@ namespace UnbalancedHaarWavelet
 
 variable {α : Type*} [MeasurableSpace α]
 
+omit [MeasurableSpace α] in
+lemma chainLength_eq_succ_of_support_eq_left
+    [DecidableEq (Set α)]
+    {T : BinaryTreeWithRootandTops (Set α)}
+    {p q : Finset (Set α) × Finset (Set α)}
+    (hp : p ∈ T.Branches) (hq : q ∈ T.Branches)
+    (hqp : Combinatorial_Support q = p.1) :
+    chainLength hq = chainLength hp + 1 := by
+  let c : ℕ → Finset (Set α) × Finset (Set α) :=
+    fun k => if h : k ≤ chainLength hp then ChainToRoot hp k else q
+  have hc0 : c 0 = T.Root := by
+    have h0 : 0 ≤ chainLength hp := Nat.zero_le _
+    simpa [c, h0] using ChainToRoot_zero hp
+  have hcend : c (chainLength hp + 1) = q := by
+    have hnot : ¬ chainLength hp + 1 ≤ chainLength hp := Nat.not_succ_le_self _
+    simp [c, hnot]
+  have hcmem : ∀ k ≤ chainLength hp + 1, c k ∈ T.Branches := by
+    intro k hk
+    by_cases hk_le : k ≤ chainLength hp
+    · simpa [c, hk_le] using ChainToRoot_mem hp hk_le
+    · have hk_last : k = chainLength hp + 1 := by omega
+      simpa [c, hk_last, Nat.not_succ_le_self] using hq
+  have hcstep :
+      ∀ k < chainLength hp + 1,
+        Combinatorial_Support (c (k + 1)) = (c k).1 ∨
+        Combinatorial_Support (c (k + 1)) = (c k).2 := by
+    intro k hk
+    by_cases hk_lt : k < chainLength hp
+    · have hk_le : k ≤ chainLength hp := Nat.le_of_lt hk_lt
+      have hks_le : k + 1 ≤ chainLength hp := Nat.succ_le_of_lt hk_lt
+      simpa [c, hk_le, hks_le] using ChainToRoot_step hp hk_lt
+    · have hk_eq : k = chainLength hp := by omega
+      have hk_le : k ≤ chainLength hp := by omega
+      have hks_not : ¬ k + 1 ≤ chainLength hp := by omega
+      have hc_k : c k = p := by
+        simpa [c, hk_eq, hk_le] using ChainToRoot_end hp
+      have hc_ks : c (k + 1) = q := by
+        simpa [c, hks_not]
+      rw [hc_k, hc_ks]
+      exact Or.inl hqp
+  have huniq := ChainToRoot_unique hq hc0 hcend hcmem hcstep
+  omega
+
+omit [MeasurableSpace α] in
+lemma chainLength_eq_succ_of_support_eq_right
+    [DecidableEq (Set α)]
+    {T : BinaryTreeWithRootandTops (Set α)}
+    {p q : Finset (Set α) × Finset (Set α)}
+    (hp : p ∈ T.Branches) (hq : q ∈ T.Branches)
+    (hqp : Combinatorial_Support q = p.2) :
+    chainLength hq = chainLength hp + 1 := by
+  let c : ℕ → Finset (Set α) × Finset (Set α) :=
+    fun k => if h : k ≤ chainLength hp then ChainToRoot hp k else q
+  have hc0 : c 0 = T.Root := by
+    have h0 : 0 ≤ chainLength hp := Nat.zero_le _
+    simpa [c, h0] using ChainToRoot_zero hp
+  have hcend : c (chainLength hp + 1) = q := by
+    have hnot : ¬ chainLength hp + 1 ≤ chainLength hp := Nat.not_succ_le_self _
+    simp [c, hnot]
+  have hcmem : ∀ k ≤ chainLength hp + 1, c k ∈ T.Branches := by
+    intro k hk
+    by_cases hk_le : k ≤ chainLength hp
+    · simpa [c, hk_le] using ChainToRoot_mem hp hk_le
+    · have hk_last : k = chainLength hp + 1 := by omega
+      simpa [c, hk_last, Nat.not_succ_le_self] using hq
+  have hcstep :
+      ∀ k < chainLength hp + 1,
+        Combinatorial_Support (c (k + 1)) = (c k).1 ∨
+        Combinatorial_Support (c (k + 1)) = (c k).2 := by
+    intro k hk
+    by_cases hk_lt : k < chainLength hp
+    · have hk_le : k ≤ chainLength hp := Nat.le_of_lt hk_lt
+      have hks_le : k + 1 ≤ chainLength hp := Nat.succ_le_of_lt hk_lt
+      simpa [c, hk_le, hks_le] using ChainToRoot_step hp hk_lt
+    · have hk_eq : k = chainLength hp := by omega
+      have hk_le : k ≤ chainLength hp := by omega
+      have hks_not : ¬ k + 1 ≤ chainLength hp := by omega
+      have hc_k : c k = p := by
+        simpa [c, hk_eq, hk_le] using ChainToRoot_end hp
+      have hc_ks : c (k + 1) = q := by
+        simpa [c, hks_not]
+      rw [hc_k, hc_ks]
+      exact Or.inr hqp
+  have huniq := ChainToRoot_unique hq hc0 hcend hcmem hcstep
+  omega
+
+omit [MeasurableSpace α] in
+lemma exists_branch_support_eq_left_of_two_le_card
+    [DecidableEq (Set α)]
+    {T : BinaryTreeWithRootandTops (Set α)}
+    {p : Finset (Set α) × Finset (Set α)}
+    (hp : p ∈ T.Branches)
+    (hcard : 2 ≤ p.1.card)
+    (childs_eq_tops: T.Childs = T.Tops) :
+    ∃ q ∈ T.Branches, Combinatorial_Support q = p.1 := by
+  sorry
+
+omit [MeasurableSpace α] in
+lemma exists_branch_support_eq_right_of_two_le_card
+    [DecidableEq (Set α)]
+    {T : BinaryTreeWithRootandTops (Set α)}
+    {p : Finset (Set α) × Finset (Set α)}
+    (hp : p ∈ T.Branches)
+    (hcard : 2 ≤ p.2.card)
+    (childs_eq_tops: T.Childs = T.Tops) :
+    ∃ q ∈ T.Branches, Combinatorial_Support q = p.2 := by
+  sorry
+
+lemma HaarSystem.nodesAtDeepness_eq_or_disjoint
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G)) :
+    ∀ n S₁ S₂,
+      S₁ ∈ H.nodesAtDeepness G n → S₂ ∈ H.nodesAtDeepness G n →
+      S₁ = S₂ ∨ Disjoint S₁ S₂ := by
+  sorry
+
+lemma HaarSystem.Index.left_branchSupport_mem_nodesAtDeepness_succ
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G))
+    (i : H.Index) :
+    UnbalancedHaarWavelet.branchSupport i.branch.1.1 ∈
+      H.nodesAtDeepness G (i.deepness G H + 1) := by
+  classical
+  rcases i with ⟨level, cell, hcell, branch⟩
+  let T := H.binaryRefinement.tree level cell hcell
+  by_cases hcard : 2 ≤ branch.1.1.card
+  · rcases exists_branch_support_eq_left_of_two_le_card
+      (T := T) branch.2 hcard with ⟨q, hq, hq_support⟩
+    let j : H.Index :=
+      { level := level
+        cell := cell
+        hcell := hcell
+        branch := ⟨q, hq⟩ }
+    left
+    refine ⟨j, ?_, ?_⟩
+    · dsimp [j, HaarSystem.Index.branchSupport]
+      simpa [haarBranchSupport, hq_support]
+    · dsimp [j, HaarSystem.Index.deepness]
+      have hlen :
+          chainLength hq = chainLength branch.2 + 1 :=
+        chainLength_eq_succ_of_support_eq_left branch.2 hq hq_support
+      rw [hlen]
+      omega
+  · have hsingleton : ∃ s : Set α, branch.1.1 = {s} := by
+      have hne : branch.1.1.Nonempty :=
+        (T.NonemptyPairs branch.1 branch.2).1
+      have hpos : 0 < branch.1.1.card := Finset.card_pos.mpr hne
+      have hle : branch.1.1.card ≤ 1 := by omega
+      exact Finset.card_eq_one.mp (Nat.le_antisymm hle hpos)
+    rcases hsingleton with ⟨s, hs⟩
+    have hp_childs : branch.1.1 ⊆ T.Childs ∧ branch.1.2 ⊆ T.Childs :=
+      T.TreeStructureChilds branch.1 branch.2
+    have hs_left : s ∈ branch.1.1 := by
+      simpa [hs]
+    have hs_child : s ∈ G.children level cell :=
+      (H.binaryRefinement.childs_are_children level cell hcell s).1
+        (hp_childs.1 hs_left)
+    have hs_part : s ∈ G.grid.partitions (level + 1) := hs_child.1
+    have hs_support :
+        UnbalancedHaarWavelet.branchSupport branch.1.1 = s := by
+      simpa [hs] using (branchSupport_singleton (α := α) s)
+    right
+    refine ⟨level + 1, s, hs_part, ?_, ?_⟩
+    · exact hs_support.symm
+    ·
+      dsimp [HaarSystem.Index.deepness]
+      dsimp [HaarSystem.cellDeepness]
+      set parent : Set α := Classical.choose (G.grid.nested level s hs_part) with hparent_def
+      have hparent : parent ∈ G.grid.partitions level :=
+        (Classical.choose_spec (G.grid.nested level s hs_part)).1
+      have hs_parent : s ⊆ parent :=
+        (Classical.choose_spec (G.grid.nested level s hs_part)).2
+      have hparent_eq : parent = cell :=
+        G.parent_unique hs_part hparent hcell hs_parent hs_child.2
+      have hchoose_eq : Classical.choose (G.grid.nested level s hs_part) = cell :=
+        hparent_def.symm.trans hparent_eq
+      cases hchoose_eq
+      have hcellDeep_eq :
+          H.cellDeepness G level (Classical.choose (G.grid.nested level s hs_part))
+              ((Classical.choose_spec (G.grid.nested level s hs_part)).1) =
+            H.cellDeepness G level (Classical.choose (G.grid.nested level s hs_part)) hcell := by
+        have hp :
+            (Classical.choose_spec (G.grid.nested level s hs_part)).1 = hcell :=
+          Subsingleton.elim _ _
+        rw [hp]
+      have htop : s ∈ T.Tops :=
+        (H.binaryRefinement.tops_are_children level
+          (Classical.choose (G.grid.nested level s hs_part)) hcell s).2 hs_child
+      let parentBranch : Finset (Set α) × Finset (Set α) :=
+        Classical.choose (T.TopsareTops s htop)
+      have hparentBranch : parentBranch ∈ T.Branches :=
+        (Classical.choose_spec (T.TopsareTops s htop)).1
+      have htop_side : ({s} : Finset (Set α)) ∈ pairToFinset parentBranch :=
+        (Classical.choose_spec (T.TopsareTops s htop)).2
+      have hbranch_side : ({s} : Finset (Set α)) ∈ pairToFinset branch.1 := by
+        dsimp [pairToFinset]
+        simp [hs]
+      have hbranch_mem : branch.1 ∈ T.Branches := by
+        simpa [T] using branch.2
+      have hparentBranch_eq : parentBranch = branch.1 :=
+        unique_parent hparentBranch hbranch_mem htop_side hbranch_side
+      rw [hparentBranch_eq] at hparentBranch
+      have hp : hparentBranch = branch.2 := Subsingleton.elim _ _
+      have hlen_eq :
+          chainLength hparentBranch = chainLength branch.2 :=
+        congrArg (fun hp' : branch.1 ∈ T.Branches => chainLength hp') hp
+      rw [hcellDeep_eq, hlen_eq]
+      rfl
+
+lemma HaarSystem.Index.right_branchSupport_mem_nodesAtDeepness_succ
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G))
+    (i : H.Index) :
+    UnbalancedHaarWavelet.branchSupport i.branch.1.2 ∈
+      H.nodesAtDeepness G (i.deepness G H + 1) := by
+  classical
+  rcases i with ⟨level, cell, hcell, branch⟩
+  let T := H.binaryRefinement.tree level cell hcell
+  by_cases hcard : 2 ≤ branch.1.2.card
+  · rcases exists_branch_support_eq_right_of_two_le_card
+      (T := T) branch.2 hcard with ⟨q, hq, hq_support⟩
+    let j : H.Index :=
+      { level := level
+        cell := cell
+        hcell := hcell
+        branch := ⟨q, hq⟩ }
+    left
+    refine ⟨j, ?_, ?_⟩
+    · dsimp [j, HaarSystem.Index.branchSupport]
+      simpa [haarBranchSupport, hq_support]
+    · dsimp [j, HaarSystem.Index.deepness]
+      have hlen :
+          chainLength hq = chainLength branch.2 + 1 :=
+        chainLength_eq_succ_of_support_eq_right branch.2 hq hq_support
+      rw [hlen]
+      omega
+  · have hsingleton : ∃ s : Set α, branch.1.2 = {s} := by
+      have hne : branch.1.2.Nonempty :=
+        (T.NonemptyPairs branch.1 branch.2).2
+      have hpos : 0 < branch.1.2.card := Finset.card_pos.mpr hne
+      have hle : branch.1.2.card ≤ 1 := by omega
+      exact Finset.card_eq_one.mp (Nat.le_antisymm hle hpos)
+    rcases hsingleton with ⟨s, hs⟩
+    have hp_childs : branch.1.1 ⊆ T.Childs ∧ branch.1.2 ⊆ T.Childs :=
+      T.TreeStructureChilds branch.1 branch.2
+    have hs_right : s ∈ branch.1.2 := by
+      simpa [hs]
+    have hs_child : s ∈ G.children level cell :=
+      (H.binaryRefinement.childs_are_children level cell hcell s).1
+        (hp_childs.2 hs_right)
+    have hs_part : s ∈ G.grid.partitions (level + 1) := hs_child.1
+    have hs_support :
+        UnbalancedHaarWavelet.branchSupport branch.1.2 = s := by
+      simpa [hs] using (branchSupport_singleton (α := α) s)
+    right
+    refine ⟨level + 1, s, hs_part, ?_, ?_⟩
+    · exact hs_support.symm
+    ·
+      dsimp [HaarSystem.Index.deepness]
+      dsimp [HaarSystem.cellDeepness]
+      set parent : Set α := Classical.choose (G.grid.nested level s hs_part) with hparent_def
+      have hparent : parent ∈ G.grid.partitions level :=
+        (Classical.choose_spec (G.grid.nested level s hs_part)).1
+      have hs_parent : s ⊆ parent :=
+        (Classical.choose_spec (G.grid.nested level s hs_part)).2
+      have hparent_eq : parent = cell :=
+        G.parent_unique hs_part hparent hcell hs_parent hs_child.2
+      have hchoose_eq : Classical.choose (G.grid.nested level s hs_part) = cell :=
+        hparent_def.symm.trans hparent_eq
+      cases hchoose_eq
+      have hcellDeep_eq :
+          H.cellDeepness G level (Classical.choose (G.grid.nested level s hs_part))
+              ((Classical.choose_spec (G.grid.nested level s hs_part)).1) =
+            H.cellDeepness G level (Classical.choose (G.grid.nested level s hs_part)) hcell := by
+        have hp :
+            (Classical.choose_spec (G.grid.nested level s hs_part)).1 = hcell :=
+          Subsingleton.elim _ _
+        rw [hp]
+      have htop : s ∈ T.Tops :=
+        (H.binaryRefinement.tops_are_children level
+          (Classical.choose (G.grid.nested level s hs_part)) hcell s).2 hs_child
+      let parentBranch : Finset (Set α) × Finset (Set α) :=
+        Classical.choose (T.TopsareTops s htop)
+      have hparentBranch : parentBranch ∈ T.Branches :=
+        (Classical.choose_spec (T.TopsareTops s htop)).1
+      have htop_side : ({s} : Finset (Set α)) ∈ pairToFinset parentBranch :=
+        (Classical.choose_spec (T.TopsareTops s htop)).2
+      have hbranch_side : ({s} : Finset (Set α)) ∈ pairToFinset branch.1 := by
+        dsimp [pairToFinset]
+        simp [hs]
+      have hbranch_mem : branch.1 ∈ T.Branches := by
+        simpa [T] using branch.2
+      have hparentBranch_eq : parentBranch = branch.1 :=
+        unique_parent hparentBranch hbranch_mem htop_side hbranch_side
+      rw [hparentBranch_eq] at hparentBranch
+      have hp : hparentBranch = branch.2 := Subsingleton.elim _ _
+      have hlen_eq :
+          chainLength hparentBranch = chainLength branch.2 :=
+        congrArg (fun hp' : branch.1 ∈ T.Branches => chainLength hp') hp
+      rw [hcellDeep_eq, hlen_eq]
+      rfl
+
+lemma HaarSystem.binaryChildren_unique_up_to_swap
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G))
+    {n : ℕ} {S : Set α} {AB CD : Set α × Set α}
+    (hAB_ne : AB.1 ≠ AB.2)
+    (hAB1 : AB.1 ∈ H.nodesAtDeepness G (n + 1))
+    (hAB2 : AB.2 ∈ H.nodesAtDeepness G (n + 1))
+    (hAB1_sub : AB.1 ⊆ S) (hAB2_sub : AB.2 ⊆ S)
+    (hAB_union : S = AB.1 ∪ AB.2)
+    (hAB_disj : Disjoint AB.1 AB.2)
+    (hCD_ne : CD.1 ≠ CD.2)
+    (hCD1 : CD.1 ∈ H.nodesAtDeepness G (n + 1))
+    (hCD2 : CD.2 ∈ H.nodesAtDeepness G (n + 1))
+    (hCD1_sub : CD.1 ⊆ S) (hCD2_sub : CD.2 ⊆ S)
+    (hCD_union : S = CD.1 ∪ CD.2)
+    (hCD_disj : Disjoint CD.1 CD.2) :
+    CD = AB ∨ CD = (AB.2, AB.1) := by
+  classical
+  have hCD1_nonempty : CD.1.Nonempty := by
+    by_contra h_empty
+    have h_eq_empty : CD.1 = ∅ := Set.not_nonempty_iff_eq_empty.mp h_empty
+    have hμ_zero : G.μ CD.1 = 0 := by simp [h_eq_empty]
+    have hμ_pos : 0 < G.μ CD.1 :=
+      H.measure_pos_of_mem_nodesAtDeepness G hCD1
+    rw [hμ_zero] at hμ_pos
+    exact (lt_irrefl 0 hμ_pos).elim
+  have hCD1_eq_left_or_right : CD.1 = AB.1 ∨ CD.1 = AB.2 := by
+    have hleft := H.nodesAtDeepness_eq_or_disjoint G (n + 1) CD.1 AB.1 hCD1 hAB1
+    have hright := H.nodesAtDeepness_eq_or_disjoint G (n + 1) CD.1 AB.2 hCD1 hAB2
+    rcases hleft with hleft_eq | hleft_disj
+    · exact Or.inl hleft_eq
+    rcases hright with hright_eq | hright_disj
+    · exact Or.inr hright_eq
+    exfalso
+    rcases hCD1_nonempty with ⟨x, hx⟩
+    have hxS : x ∈ S := hCD1_sub hx
+    have hxAB : x ∈ AB.1 ∪ AB.2 := by simpa [hAB_union] using hxS
+    rcases hxAB with hxAB1 | hxAB2
+    · exact (Set.disjoint_left.mp hleft_disj hx hxAB1).elim
+    · exact (Set.disjoint_left.mp hright_disj hx hxAB2).elim
+  rcases hCD1_eq_left_or_right with hCD1_left | hCD1_right
+  · left
+    have hCD2_right : CD.2 = AB.2 := by
+      ext x
+      constructor
+      · intro hx
+        have hxS : x ∈ S := hCD2_sub hx
+        have hxAB : x ∈ AB.1 ∪ AB.2 := by simpa [hAB_union] using hxS
+        rcases hxAB with hxAB1 | hxAB2
+        · have hxCD1 : x ∈ CD.1 := by simpa [hCD1_left] using hxAB1
+          exact (Set.disjoint_left.mp hCD_disj hxCD1 hx).elim
+        · exact hxAB2
+      · intro hx
+        have hxS : x ∈ S := by
+          rw [hAB_union]
+          exact Or.inr hx
+        have hxCD : x ∈ CD.1 ∪ CD.2 := by simpa [hCD_union] using hxS
+        rcases hxCD with hxCD1 | hxCD2
+        · have hxAB1 : x ∈ AB.1 := by simpa [hCD1_left] using hxCD1
+          exact (Set.disjoint_left.mp hAB_disj hxAB1 hx).elim
+        · exact hxCD2
+    ext <;> simp [hCD1_left, hCD2_right]
+  · right
+    have hCD2_left : CD.2 = AB.1 := by
+      ext x
+      constructor
+      · intro hx
+        have hxS : x ∈ S := hCD2_sub hx
+        have hxAB : x ∈ AB.1 ∪ AB.2 := by simpa [hAB_union] using hxS
+        rcases hxAB with hxAB1 | hxAB2
+        · exact hxAB1
+        · have hxCD1 : x ∈ CD.1 := by simpa [hCD1_right] using hxAB2
+          exact (Set.disjoint_left.mp hCD_disj hxCD1 hx).elim
+      · intro hx
+        have hxS : x ∈ S := by
+          rw [hAB_union]
+          exact Or.inl hx
+        have hxCD : x ∈ CD.1 ∪ CD.2 := by simpa [hCD_union] using hxS
+        rcases hxCD with hxCD1 | hxCD2
+        · have hxAB2 : x ∈ AB.2 := by simpa [hCD1_right] using hxCD1
+          exact (Set.disjoint_left.mp hAB_disj hx hxAB2).elim
+        · exact hxCD2
+    ext <;> simp [hCD1_right, hCD2_left]
+
 /-- Estrutura da sequência de partições induzidas pelos suportes dos ramos do sistema de Haar.
     - A partição de nível zero é {univ}.
     - Nós de mesma profundidade são iguais ou disjuntos.
@@ -1384,12 +1838,19 @@ theorem HaarSystem.binaryGrid_structure
     S₁ ∈ H.nodesAtDeepness G n → S₂ ∈ H.nodesAtDeepness G n →
     S₁ = S₂ ∨ Disjoint S₁ S₂) ∧
   (∀ n S, S ∈ H.nodesAtDeepness G n →
-    (∃! AB : Set α × Set α,
+    (∃ AB : Set α × Set α,
       AB.1 ≠ AB.2 ∧
       AB.1 ∈ H.nodesAtDeepness G (n + 1) ∧
       AB.2 ∈ H.nodesAtDeepness G (n + 1) ∧
       AB.1 ⊆ S ∧ AB.2 ⊆ S ∧
-      S = AB.1 ∪ AB.2 ∧ Disjoint AB.1 AB.2)) ∧
+      S = AB.1 ∪ AB.2 ∧ Disjoint AB.1 AB.2 ∧
+      ∀ CD : Set α × Set α,
+        CD.1 ≠ CD.2 →
+        CD.1 ∈ H.nodesAtDeepness G (n + 1) →
+        CD.2 ∈ H.nodesAtDeepness G (n + 1) →
+        CD.1 ⊆ S → CD.2 ⊆ S →
+        S = CD.1 ∪ CD.2 → Disjoint CD.1 CD.2 →
+        CD = AB ∨ CD = (AB.2, AB.1))) ∧
   (∀ n S,
     S ∈ H.nodesAtDeepness G n →
     ∃ (i : H.Index) (p : Finset (Set α) × Finset (Set α)),
@@ -1405,7 +1866,129 @@ theorem HaarSystem.binaryGrid_structure
       (p : Finset (Set α) × Finset (Set α)),
       p ∈ (H.binaryRefinement.tree level cell hcell).Branches →
       ∃ n, haarBranchSupport p ∈ H.nodesAtDeepness G n) := by
-  sorry
+  classical
+  have hnode_split :
+      ∀ n S,
+        S ∈ H.nodesAtDeepness G n →
+        ∃ (i : H.Index) (p : Finset (Set α) × Finset (Set α)),
+            i.branchSupport G H = S ∧
+            p ∈ (H.binaryRefinement.tree i.level i.cell i.hcell).Branches ∧
+            S = haarBranchSupport p ∧
+            let A := branchSupport p.1
+            let B := branchSupport p.2
+            A ∈ H.nodesAtDeepness G (n + 1) ∧ B ∈ H.nodesAtDeepness G (n + 1) ∧
+            A ⊆ S ∧ B ⊆ S ∧
+            S = A ∪ B ∧ Disjoint A B := by
+    intro n S hS
+    rcases hS with hbranch | hcell
+    · rcases hbranch with ⟨i, hiS, hideep⟩
+      refine ⟨i, i.branch.1, hiS, i.branch.2, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+      · simpa [HaarSystem.Index.branchSupport] using hiS.symm
+      · simpa [hideep] using i.left_branchSupport_mem_nodesAtDeepness_succ G H
+      · simpa [hideep] using i.right_branchSupport_mem_nodesAtDeepness_succ G H
+      · rw [← hiS]
+        exact branchSupport_left_subset_haarBranchSupport i.branch.1
+      · rw [← hiS]
+        exact branchSupport_right_subset_haarBranchSupport i.branch.1
+      · rw [← hiS]
+        exact haarBranchSupport_eq_union_branchSupport i.branch.1
+      · simpa using H.branchSupport_components_disjoint G i.branch
+    · rcases hcell with ⟨level, cell, hcell, hS_cell, hdeep⟩
+      let T := H.binaryRefinement.tree level cell hcell
+      let i : H.Index :=
+        { level := level
+          cell := cell
+          hcell := hcell
+          branch := ⟨T.Root, T.RootinBranches⟩ }
+      refine ⟨i, T.Root, ?_, T.RootinBranches, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+      · dsimp [i, HaarSystem.Index.branchSupport]
+        exact (H.haarBranchSupport_root_eq_cell G
+          (level := level) (cell := cell) (hcell := hcell)).trans hS_cell
+      · exact hS_cell.symm.trans
+          (H.haarBranchSupport_root_eq_cell G
+            (level := level) (cell := cell) (hcell := hcell)).symm
+      · have hideep_i : i.deepness G H = n := by
+          dsimp [i, HaarSystem.Index.deepness]
+          rw [HaarSystem.chainLength_root]
+          omega
+        simpa [hideep_i] using i.left_branchSupport_mem_nodesAtDeepness_succ G H
+      · have hideep_i : i.deepness G H = n := by
+          dsimp [i, HaarSystem.Index.deepness]
+          rw [HaarSystem.chainLength_root]
+          omega
+        simpa [hideep_i] using i.right_branchSupport_mem_nodesAtDeepness_succ G H
+      · rw [← hS_cell]
+        exact (branchSupport_left_subset_haarBranchSupport T.Root).trans
+          (by
+            rw [H.haarBranchSupport_root_eq_cell G
+              (level := level) (cell := cell) (hcell := hcell)])
+      · rw [← hS_cell]
+        exact (branchSupport_right_subset_haarBranchSupport T.Root).trans
+          (by
+            rw [H.haarBranchSupport_root_eq_cell G
+              (level := level) (cell := cell) (hcell := hcell)])
+      · rw [← hS_cell]
+        exact (H.haarBranchSupport_root_eq_cell G
+          (level := level) (cell := cell) (hcell := hcell)).symm.trans
+          (haarBranchSupport_eq_union_branchSupport T.Root)
+      · simpa [T] using H.branchSupport_components_disjoint G
+          ({ val := T.Root, property := T.RootinBranches } :
+            {r : Finset (Set α) × Finset (Set α) //
+              r ∈ (H.binaryRefinement.tree level cell hcell).Branches})
+  refine ⟨?_, ?_, ?_, ?_, ?_⟩
+  · exact H.nodesAtDeepness_zero_eq_singleton G
+  · intro n S₁ S₂ hS₁ hS₂
+    exact H.nodesAtDeepness_eq_or_disjoint G n S₁ S₂ hS₁ hS₂
+  · intro n S hS
+    rcases hnode_split n S hS with
+      ⟨i, p, hiS, hp, hS_eq, hA_mem, hB_mem, hA_sub, hB_sub, hunion, hdisj⟩
+    have hAB_ne : branchSupport p.1 ≠ branchSupport p.2 := by
+      intro h_eq
+      have hpos_left : 0 < G.μ (branchSupport p.1) := by
+        let T := H.binaryRefinement.tree i.level i.cell i.hcell
+        have hp_childs : p.1 ⊆ T.Childs ∧ p.2 ⊆ T.Childs :=
+          T.TreeStructureChilds p hp
+        have hp1_part :
+            ∀ s, s ∈ p.1 → s ∈ G.grid.partitions (i.level + 1) := by
+          intro s hs
+          exact (H.binaryRefinement.childs_are_children i.level i.cell i.hcell s).1
+            (hp_childs.1 hs) |>.1
+        exact measure_branchSupport_pos_of_nonempty G p.1
+          (by
+            intro s hs
+            exact G.positive_measure (i.level + 1) s (hp1_part s hs))
+          (T.NonemptyPairs p hp).1
+      have hdisj_self : Disjoint (branchSupport p.1) (branchSupport p.1) := by
+        have hAB : branchSupport p.1 = branchSupport p.2 := by
+          simpa using h_eq
+        rw [← hAB] at hdisj
+        exact hdisj
+      have hleft_empty : branchSupport p.1 = ∅ := by
+        simpa [disjoint_self] using hdisj_self
+      have hmeasure_zero : G.μ (branchSupport p.1) = 0 := by
+        simp [hleft_empty]
+      rw [hmeasure_zero] at hpos_left
+      exact (lt_irrefl 0 hpos_left).elim
+    refine ⟨(branchSupport p.1, branchSupport p.2), hAB_ne, hA_mem, hB_mem,
+      hA_sub, hB_sub, hunion, hdisj, ?_⟩
+    · intro CD hCD_ne hCD1 hCD2 hCD1_sub hCD2_sub hCD_union hCD_disj
+      exact H.binaryChildren_unique_up_to_swap G
+        (AB := (branchSupport p.1, branchSupport p.2)) (CD := CD)
+        (n := n) (S := S)
+        hAB_ne
+        hA_mem hB_mem hA_sub hB_sub hunion hdisj
+        hCD_ne hCD1 hCD2 hCD1_sub hCD2_sub hCD_union hCD_disj
+  · intro n S hS
+    exact hnode_split n S hS
+  · intro level cell hcell p hp
+    let i : H.Index :=
+      { level := level
+        cell := cell
+        hcell := hcell
+        branch := ⟨p, hp⟩ }
+    refine ⟨i.deepness G H, ?_⟩
+    simpa [i, HaarSystem.Index.branchSupport] using
+      (H.branchSupport_mem_nodesAtDeepness G i)
 
 
 
