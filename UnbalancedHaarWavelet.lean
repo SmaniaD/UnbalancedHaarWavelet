@@ -5,3 +5,4 @@ import UnbalancedHaarWavelet.HaarWaveletsLinearCombinations
 import UnbalancedHaarWavelet.HaarWaveletsOrthogonality
 import UnbalancedHaarWavelet.HaarWaveletsDefinition
 import UnbalancedHaarWavelet.HaarWaveletsInducedBinaryGrid
+import UnbalancedHaarWavelet.HaarWavelets_def_Martingale
