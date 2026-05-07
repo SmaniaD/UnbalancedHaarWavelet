@@ -1,13 +1,15 @@
 # UnbalancedHaarWavelet
 
-## GitHub configuration
+This is an ongoing Lean 4 project whose goal is to formalize the construction of unbalanced Haar wavelets on measure spaces 
+equipped with a finite measure and a sequence of finite measurable partitions.
 
-To set up your new GitHub repository, follow these steps:
+The main objective is to prove that these wavelets form an unconditional Schauder basis of $L^p$ for every $1 < p < \infty$.
 
-* Under your repository name, click **Settings**.
-* In the **Actions** section of the sidebar, click "General".
-* Check the box **Allow GitHub Actions to create and approve pull requests**.
-* Click the **Pages** section of the settings sidebar.
-* In the **Source** dropdown menu, select "GitHub Actions".
+The construction and the proof follow the approach developed in:
 
-After following the steps above, you can remove this section from the README file.
+> Maria Girardi and Wim Sweldens,  
+> *A New Class of Unbalanced Haar Wavelets That Form an Unconditional Basis for $L^p$ on General Measure Spaces*,  
+> Journal of Fourier Analysis and Applications, Volume 3, Number 4, 1997.
+
+This repository is intended as a first step toward a Lean formalization of the theory of unbalanced Haar wavelets and their
+applications to Besov spaces and transfer operators on general measure spaces.
