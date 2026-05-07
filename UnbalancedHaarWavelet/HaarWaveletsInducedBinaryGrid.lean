@@ -414,6 +414,124 @@ theorem HaarSystem.haarBranchSupport_laminar_same_tree
           (hq_sub_p2.trans (Finset.subset_union_right)),
         hmeasure_ne_of_sub_right q.2 p.2 hq_part hp1_part hp2_part hq_sub_p2⟩
 
+/-- In a fixed binary refinement tree, the set-theoretic branch support is injective on
+branches. -/
+theorem HaarSystem.haarBranchSupport_eq_iff_eq_same_tree
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G))
+    (level : ℕ) (cell : Set α) (hcell : cell ∈ G.grid.partitions level)
+    (p q : {r : Finset (Set α) × Finset (Set α) //
+      r ∈ (H.binaryRefinement.tree level cell hcell).Branches}) :
+    haarBranchSupport p.1 = haarBranchSupport q.1 ↔ p = q := by
+  classical
+  constructor
+  · intro hsupport
+    rcases H.haarBranchSupport_laminar_same_tree G level cell hcell p q with
+      hpq | hsub | hsub | hdisj
+    · exact hpq
+    · rcases hsub with ⟨_hsubset, hmeasure_ne⟩
+      exact (hmeasure_ne (by rw [hsupport])).elim
+    · rcases hsub with ⟨_hsubset, hmeasure_ne⟩
+      exact (hmeasure_ne (by rw [hsupport])).elim
+    · have hself_disj : Disjoint (haarBranchSupport p.1) (haarBranchSupport p.1) := by
+        simpa [hsupport] using hdisj
+      let T := H.binaryRefinement.tree level cell hcell
+      have hp_childs : p.1.1 ⊆ T.Childs ∧ p.1.2 ⊆ T.Childs :=
+        T.TreeStructureChilds p.1 p.2
+      have hp_part :
+          ∀ s, s ∈ Combinatorial_Support p.1 → s ∈ G.grid.partitions (level + 1) := by
+        intro s hs
+        rcases Finset.mem_union.mp (by simpa [Combinatorial_Support] using hs) with hs1 | hs2
+        · exact (H.binaryRefinement.childs_are_children level cell hcell s).1
+            (hp_childs.1 hs1) |>.1
+        · exact (H.binaryRefinement.childs_are_children level cell hcell s).1
+            (hp_childs.2 hs2) |>.1
+      have hpos : 0 < G.μ (haarBranchSupport p.1) :=
+        measure_haarBranchSupport_pos G p.2 hp_part
+      have hempty : haarBranchSupport p.1 = ∅ := by
+        ext x
+        constructor
+        · intro hx
+          exact (Set.disjoint_left.mp hself_disj hx hx).elim
+        · intro hx
+          exact False.elim (by simpa using hx)
+      rw [hempty] at hpos
+      simpa using hpos
+  · intro hpq
+    rw [hpq]
+
+/-- The support of any branch in any refinement tree is nonempty. -/
+lemma HaarSystem.haarBranchSupport_nonempty
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G))
+    (level : ℕ) (cell : Set α) (hcell : cell ∈ G.grid.partitions level)
+    (p : {r : Finset (Set α) × Finset (Set α) //
+      r ∈ (H.binaryRefinement.tree level cell hcell).Branches}) :
+    (haarBranchSupport p.1).Nonempty := by
+  classical
+  let T := H.binaryRefinement.tree level cell hcell
+  obtain ⟨s, hs⟩ := (T.NonemptyPairs p.1 p.2).1
+  have hs_child : s ∈ T.Childs :=
+    (T.TreeStructureChilds p.1 p.2).1 hs
+  have hs_part : s ∈ G.grid.partitions (level + 1) :=
+    (H.binaryRefinement.childs_are_children level cell hcell s).1 hs_child |>.1
+  obtain ⟨x, hx⟩ := G.partition_nonempty (level + 1) s hs_part
+  refine ⟨x, ?_⟩
+  rw [haarBranchSupport, branchSupport, Combinatorial_Support]
+  exact Set.mem_iUnion.2
+    ⟨s, Set.mem_iUnion.2 ⟨Finset.mem_union_left p.1.2 hs, hx⟩⟩
+
+/-- A finite chain of branch supports, starting at the root branch of the unique cell in the
+first partition and moving at each step into one side of the previous branch. -/
+def LongChain_to_Root
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G)) (n : ℕ)
+    (chain : ℕ → (Finset (Set α) × Finset (Set α))) : Prop :=
+  chain 0 =
+      (H.binaryRefinement.tree 0 Set.univ
+        (by simp [G.grid.first_partition_eq_univ])).Root ∧
+    (∀ i ≤ n, ∃ level : ℕ, ∃ cell : Set α, ∃ hcell : cell ∈ G.grid.partitions level,
+      chain i ∈ (H.binaryRefinement.tree level cell hcell).Branches) ∧
+    (∀ i < n,
+      haarBranchSupport (chain (i + 1)) = branchSupport (chain i).1 ∨
+      haarBranchSupport (chain (i + 1)) = branchSupport (chain i).2)
+
+/-- A finite chain inside one fixed refinement tree, starting at that tree's root branch
+and moving at each step into one side of the previous branch. -/
+def LocalChain_to_Root
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G)) {level : ℕ} {cell : Set α}
+    (hcell : cell ∈ G.grid.partitions level) (n : ℕ)
+    (chain : ℕ → (Finset (Set α) × Finset (Set α))) : Prop :=
+  chain 0 =
+      (H.binaryRefinement.tree level cell hcell).Root ∧
+    (∀ i ≤ n, chain i ∈ (H.binaryRefinement.tree level cell hcell).Branches) ∧
+    (∀ i < n,
+      haarBranchSupport (chain (i + 1)) = branchSupport (chain i).1 ∨
+      haarBranchSupport (chain (i + 1)) = branchSupport (chain i).2)
+
+/-- Every branch in every binary refinement tree is the endpoint of a finite chain
+starting at the root of that tree. -/
+theorem HaarSystem.exists_LocalChain_to_Root_finish_branch
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G))
+    {level : ℕ} {cell : Set α} (hcell : cell ∈ G.grid.partitions level)
+    {branch : Finset (Set α) × Finset (Set α)}
+    (hbranch : branch ∈ (H.binaryRefinement.tree level cell hcell).Branches) :
+    ∃ n : ℕ, ∃ chain : ℕ → (Finset (Set α) × Finset (Set α)),
+      LocalChain_to_Root G H hcell n chain ∧ chain n = branch := by
+  refine ⟨chainLength hbranch, ChainToRoot hbranch, ?_, ?_⟩
+  · refine ⟨ChainToRoot_zero hbranch, ?_, ?_⟩
+    · intro i hi
+      exact ChainToRoot_mem hbranch hi
+    · intro i hi
+      rcases ChainToRoot_step hbranch hi with hstep | hstep
+      · left
+        simp [haarBranchSupport, hstep]
+      · right
+        simp [haarBranchSupport, hstep]
+  · exact ChainToRoot_end hbranch
+
 lemma chainLength_eq_of_chainToRoot_eq
     {β : Type*} [DecidableEq β]
     {T : BinaryTreeWithRootandTops β}
@@ -598,6 +716,55 @@ theorem HaarSystem.haarBranchSupport_laminar_of_lt_level
   · right
     exact (hPQ_disj.mono_left hp_sub_P).mono_right hq_sub_Q
 
+/-- Globally, among branches of refinement trees, `haarBranchSupport` is injective. -/
+theorem HaarSystem.haarBranchSupport_eq_iff_eq_global
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G))
+    (n m : ℕ)
+    (Q P : Set α) (hQ : Q ∈ G.grid.partitions n) (hP : P ∈ G.grid.partitions m)
+    (q : {r : Finset (Set α) × Finset (Set α) //
+      r ∈ (H.binaryRefinement.tree n Q hQ).Branches})
+    (p : {r : Finset (Set α) × Finset (Set α) //
+      r ∈ (H.binaryRefinement.tree m P hP).Branches}) :
+    haarBranchSupport q.1 = haarBranchSupport p.1 ↔ q.1 = p.1 := by
+  classical
+  constructor
+  · intro hsupport
+    rcases Nat.lt_trichotomy n m with hnm | hnm | hmn
+    · rcases H.haarBranchSupport_laminar_of_lt_level G n m hnm Q hQ q P hP p with
+        hsub | hdisj
+      · rcases hsub with ⟨_hsubset, hmeasure_ne⟩
+        exact (hmeasure_ne (by rw [hsupport])).elim
+      · have hself_disj : Disjoint (haarBranchSupport q.1) (haarBranchSupport q.1) := by
+          simpa [← hsupport] using hdisj.symm
+        rcases H.haarBranchSupport_nonempty G n Q hQ q with ⟨x, hx⟩
+        exact (Set.disjoint_left.mp hself_disj hx hx).elim
+    · subst m
+      by_cases hQP : Q = P
+      · subst P
+        have hproof : hP = hQ := Subsingleton.elim _ _
+        subst hP
+        exact congrArg Subtype.val
+          ((H.haarBranchSupport_eq_iff_eq_same_tree G n Q hQ q p).1 hsupport)
+      · have hdisj_QP : Disjoint Q P :=
+          G.grid.disjoint n Q P hQ hP hQP
+        have hdisj : Disjoint (haarBranchSupport q.1) (haarBranchSupport p.1) :=
+          H.haarBranchSupport_disjoint_of_cells_disjoint G q p hdisj_QP
+        have hself_disj : Disjoint (haarBranchSupport q.1) (haarBranchSupport q.1) := by
+          simpa [← hsupport] using hdisj
+        rcases H.haarBranchSupport_nonempty G n Q hQ q with ⟨x, hx⟩
+        exact (Set.disjoint_left.mp hself_disj hx hx).elim
+    · rcases H.haarBranchSupport_laminar_of_lt_level G m n hmn P hP p Q hQ q with
+        hsub | hdisj
+      · rcases hsub with ⟨_hsubset, hmeasure_ne⟩
+        exact (hmeasure_ne (by rw [← hsupport])).elim
+      · have hself_disj : Disjoint (haarBranchSupport q.1) (haarBranchSupport q.1) := by
+          simpa [hsupport] using hdisj.symm
+        rcases H.haarBranchSupport_nonempty G n Q hQ q with ⟨x, hx⟩
+        exact (Set.disjoint_left.mp hself_disj hx hx).elim
+  · intro hpq
+    rw [hpq]
+
 /-- Support of a globally indexed Haar-system branch. -/
 noncomputable def HaarSystem.Index.branchSupport
     (G : Grid (α := α)) [DecidableEq (Set α)]
@@ -694,6 +861,124 @@ lemma HaarSystem.haarBranchSupport_root_eq_cell
     _ = branchSupport T.Childs := by rw [hroot_childs]
     _ = branchSupport (G.childrenFinset level cell) := by rw [hchilds_finset]
     _ = cell := HaarSystem.branchSupport_childrenFinset_eq G level cell hcell
+
+/-- Every branch in every binary refinement tree is the endpoint of a finite long chain
+starting at the root branch of the unique element of the first partition. -/
+theorem HaarSystem.exists_LongChain_to_Root_finish_branch
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G))
+    {level : ℕ} {cell : Set α} (hcell : cell ∈ G.grid.partitions level)
+    {branch : Finset (Set α) × Finset (Set α)}
+    (hbranch : branch ∈ (H.binaryRefinement.tree level cell hcell).Branches) :
+    ∃ n : ℕ, ∃ chain : ℕ → (Finset (Set α) × Finset (Set α)),
+      LongChain_to_Root G H n chain ∧ chain n = branch := by
+  classical
+  induction level generalizing cell branch with
+  | zero =>
+      have hcell_univ : cell = Set.univ := by
+        simpa [G.grid.first_partition_eq_univ] using hcell
+      subst cell
+      refine ⟨chainLength hbranch, ChainToRoot hbranch, ?_, ?_⟩
+      · refine ⟨?_, ?_, ?_⟩
+        · simpa using ChainToRoot_zero hbranch
+        · intro i hi
+          exact ⟨0, Set.univ, hcell, ChainToRoot_mem hbranch hi⟩
+        · intro i hi
+          rcases ChainToRoot_step hbranch hi with hstep | hstep
+          · left
+            simp [haarBranchSupport, hstep]
+          · right
+            simp [haarBranchSupport, hstep]
+      · exact ChainToRoot_end hbranch
+  | succ level ih =>
+      let parent : Set α := Classical.choose (G.grid.nested level cell hcell)
+      have hparent : parent ∈ G.grid.partitions level :=
+        (Classical.choose_spec (G.grid.nested level cell hcell)).1
+      have hcell_parent : cell ⊆ parent :=
+        (Classical.choose_spec (G.grid.nested level cell hcell)).2
+      let Tparent := H.binaryRefinement.tree level parent hparent
+      have hchild : cell ∈ G.children level parent := ⟨hcell, hcell_parent⟩
+      have htop : cell ∈ Tparent.Tops :=
+        (H.binaryRefinement.tops_are_children level parent hparent cell).2 hchild
+      let parentBranch : Finset (Set α) × Finset (Set α) :=
+        Classical.choose (Tparent.TopsareTops cell htop)
+      have hparentBranch : parentBranch ∈ Tparent.Branches :=
+        (Classical.choose_spec (Tparent.TopsareTops cell htop)).1
+      have htop_side : ({cell} : Finset (Set α)) ∈ pairToFinset parentBranch :=
+        (Classical.choose_spec (Tparent.TopsareTops cell htop)).2
+      rcases ih hparent hparentBranch with ⟨n₀, chain₀, hchain₀, hend₀⟩
+      let m := chainLength hbranch
+      let offset := n₀ + 1
+      let chain : ℕ → (Finset (Set α) × Finset (Set α)) :=
+        fun k => if h : k ≤ n₀ then chain₀ k else ChainToRoot hbranch (k - offset)
+      refine ⟨offset + m, chain, ?_, ?_⟩
+      · rcases hchain₀ with ⟨hzero₀, hmem₀, hstep₀⟩
+        refine ⟨?_, ?_, ?_⟩
+        · have h0le : 0 ≤ n₀ := Nat.zero_le _
+          simpa [chain, h0le] using hzero₀
+        · intro i hi
+          by_cases hi₀ : i ≤ n₀
+          · simpa [chain, hi₀] using hmem₀ i hi₀
+          · have hlocal_le : i - offset ≤ m := by omega
+            refine ⟨level + 1, cell, hcell, ?_⟩
+            simpa [chain, hi₀, m] using ChainToRoot_mem hbranch hlocal_le
+        · intro i hi
+          by_cases hi_lt : i < n₀
+          · have hi_le : i ≤ n₀ := Nat.le_of_lt hi_lt
+            have his_le : i + 1 ≤ n₀ := Nat.succ_le_of_lt hi_lt
+            simpa [chain, hi_le, his_le] using hstep₀ i hi_lt
+          · by_cases hi_eq : i = n₀
+            · subst i
+              have hn_le : n₀ ≤ n₀ := le_rfl
+              have hn1_not : ¬ n₀ + 1 ≤ n₀ := Nat.not_succ_le_self n₀
+              have hroot_child :
+                  haarBranchSupport
+                    ((H.binaryRefinement.tree (level + 1) cell hcell).Root)
+                    = cell :=
+                H.haarBranchSupport_root_eq_cell G
+                  (level := level + 1) (cell := cell) (hcell := hcell)
+              have hlocal_zero :
+                  ChainToRoot hbranch 0 =
+                    (H.binaryRefinement.tree (level + 1) cell hcell).Root :=
+                ChainToRoot_zero hbranch
+              have hside :
+                  ({cell} : Finset (Set α)) = parentBranch.1 ∨
+                    ({cell} : Finset (Set α)) = parentBranch.2 := by
+                dsimp [pairToFinset] at htop_side
+                simpa [Finset.mem_insert, Finset.mem_singleton] using htop_side
+              have hchain_n : chain₀ n₀ = parentBranch := hend₀
+              have hsingleton : branchSupport ({cell} : Finset (Set α)) = cell := by
+                ext x
+                simp [branchSupport]
+              rcases hside with hleft | hright
+              · left
+                calc
+                  haarBranchSupport (chain (n₀ + 1))
+                      = cell := by
+                        simp [chain, offset, hn1_not, hlocal_zero, hroot_child]
+                  _ = branchSupport (chain n₀).1 := by
+                        simp [chain, hchain_n, ← hleft, hsingleton]
+              · right
+                calc
+                  haarBranchSupport (chain (n₀ + 1))
+                      = cell := by
+                        simp [chain, offset, hn1_not, hlocal_zero, hroot_child]
+                  _ = branchSupport (chain n₀).2 := by
+                        simp [chain, hchain_n, ← hright, hsingleton]
+            · have hi_not : ¬ i ≤ n₀ := by omega
+              have his_not : ¬ i + 1 ≤ n₀ := by omega
+              have hlocal_lt : i - offset < m := by omega
+              have hsub_succ : i + 1 - offset = (i - offset) + 1 := by omega
+              rcases ChainToRoot_step hbranch hlocal_lt with hstep | hstep
+              · left
+                simpa [chain, hi_not, his_not, hsub_succ, haarBranchSupport] using
+                  congrArg branchSupport hstep
+              · right
+                simpa [chain, hi_not, his_not, hsub_succ, haarBranchSupport] using
+                  congrArg branchSupport hstep
+      · have hnot : ¬ offset + m ≤ n₀ := by omega
+        have hsub : offset + m - offset = m := by omega
+        simpa [chain, hnot, hsub, m] using ChainToRoot_end hbranch
 
 lemma HaarSystem.chainLength_root
     {β : Type*} [DecidableEq β]
@@ -880,6 +1165,307 @@ lemma HaarSystem.branchSupport_components_disjoint
       (hp_childs.2 hs) |>.1
   exact disjoint_branchSupport_of_finset_disjoint G level p.1.1 p.1.2
     hp1_part hp2_part (T.DisjointComponents p.1 p.2)
+
+/-- Along a long chain, each next support is contained in the previous support. -/
+lemma LongChain_to_Root.support_succ_subset
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G)) {n : ℕ}
+    {chain : ℕ → (Finset (Set α) × Finset (Set α))}
+    (hchain : LongChain_to_Root G H n chain)
+    {k : ℕ} (hk : k < n) :
+    haarBranchSupport (chain (k + 1)) ⊆ haarBranchSupport (chain k) ∧
+      haarBranchSupport (chain (k + 1)) ≠ haarBranchSupport (chain k) := by
+  rcases hchain with ⟨_hzero, hmem, hstep⟩
+  rcases hmem k (Nat.le_of_lt hk) with ⟨level, cell, hcell, hbranch⟩
+  rcases hstep k hk with hleft | hright
+  · constructor
+    · rw [hleft]
+      exact branchSupport_left_subset_haarBranchSupport (chain k)
+    · intro heq
+      have hμ_ne :
+          G.μ (branchSupport (chain k).1) ≠
+            G.μ (haarBranchSupport (chain k)) :=
+        H.measure_ne_of_subset_branchSupport_left G
+          ({ val := chain k, property := hbranch } :
+            {r : Finset (Set α) × Finset (Set α) //
+              r ∈ (H.binaryRefinement.tree level cell hcell).Branches})
+          Set.Subset.rfl
+      exact hμ_ne (by rw [← hleft, heq])
+  · constructor
+    · rw [hright]
+      exact branchSupport_right_subset_haarBranchSupport (chain k)
+    · intro heq
+      have hμ_ne :
+          G.μ (branchSupport (chain k).2) ≠
+            G.μ (haarBranchSupport (chain k)) :=
+        H.measure_ne_of_subset_branchSupport_right G
+          ({ val := chain k, property := hbranch } :
+            {r : Finset (Set α) × Finset (Set α) //
+              r ∈ (H.binaryRefinement.tree level cell hcell).Branches})
+          Set.Subset.rfl
+      exact hμ_ne (by rw [← hright, heq])
+
+/-- Along a long chain, later supports are contained in earlier supports. -/
+lemma LongChain_to_Root.support_mono_le
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G)) {n : ℕ}
+    {chain : ℕ → (Finset (Set α) × Finset (Set α))}
+    (hchain : LongChain_to_Root G H n chain)
+    {i j : ℕ} (hij : i ≤ j) (hjn : j ≤ n) :
+    haarBranchSupport (chain j) ⊆ haarBranchSupport (chain i) := by
+  induction hij with
+  | refl =>
+      exact Set.Subset.rfl
+  | @step k _ hik =>
+      have hkn : k ≤ n := le_trans (Nat.le_succ k) hjn
+      have hsucc : haarBranchSupport (chain (k + 1)) ⊆ haarBranchSupport (chain k) :=
+        (hchain.support_succ_subset G H (Nat.lt_of_succ_le hjn)).1
+      exact hsucc.trans (hik hkn)
+
+/-- Along a long chain, a strictly later support is properly contained in the earlier support. -/
+lemma LongChain_to_Root.support_mono
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G)) {n : ℕ}
+    {chain : ℕ → (Finset (Set α) × Finset (Set α))}
+    (hchain : LongChain_to_Root G H n chain)
+    {i j : ℕ} (hij : i < j) (hjn : j ≤ n) :
+    haarBranchSupport (chain j) ⊆ haarBranchSupport (chain i) ∧
+      haarBranchSupport (chain j) ≠ haarBranchSupport (chain i) := by
+  constructor
+  · exact hchain.support_mono_le G H hij.le hjn
+  · intro heq
+    have hi_succ_le_j : i + 1 ≤ j := Nat.succ_le_of_lt hij
+    have hi_lt_n : i < n := Nat.lt_of_succ_le (hi_succ_le_j.trans hjn)
+    have hsucc := hchain.support_succ_subset G H hi_lt_n
+    have htail :
+        haarBranchSupport (chain j) ⊆ haarBranchSupport (chain (i + 1)) :=
+      hchain.support_mono_le G H hi_succ_le_j hjn
+    have hreverse :
+        haarBranchSupport (chain i) ⊆ haarBranchSupport (chain (i + 1)) := by
+      simpa [heq] using htail
+    have heq_succ :
+        haarBranchSupport (chain (i + 1)) = haarBranchSupport (chain i) :=
+      Set.Subset.antisymm hsucc.1 hreverse
+    exact hsucc.2 heq_succ
+
+/-- The final support of a long chain is nonempty. -/
+lemma LongChain_to_Root.final_support_nonempty
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G)) {n : ℕ}
+    {chain : ℕ → (Finset (Set α) × Finset (Set α))}
+    (hchain : LongChain_to_Root G H n chain) :
+    (haarBranchSupport (chain n)).Nonempty := by
+  classical
+  rcases hchain with ⟨_hzero, hmem, _hstep⟩
+  rcases hmem n le_rfl with ⟨level, cell, hcell, hbranch⟩
+  let T := H.binaryRefinement.tree level cell hcell
+  obtain ⟨s, hs⟩ := (T.NonemptyPairs (chain n) hbranch).1
+  have hs_child : s ∈ T.Childs :=
+    (T.TreeStructureChilds (chain n) hbranch).1 hs
+  have hs_part : s ∈ G.grid.partitions (level + 1) :=
+    ((H.binaryRefinement.childs_are_children level cell hcell s).1 hs_child).1
+  obtain ⟨x, hx⟩ := G.partition_nonempty (level + 1) s hs_part
+  exact ⟨x, by
+    rw [haarBranchSupport, branchSupport, Combinatorial_Support]
+    exact Set.mem_iUnion.2
+      ⟨s, Set.mem_iUnion.2 ⟨Finset.mem_union_left (chain n).2 hs, hx⟩⟩⟩
+
+/-- If two long chains split from the same branch by taking opposite sides, then their final
+branch supports are disjoint. -/
+theorem LongChain_to_Root.disjoint_final_of_split_left_right
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G))
+    {m n i : ℕ}
+    {chain₁ chain₂ : ℕ → (Finset (Set α) × Finset (Set α))}
+    (hchain₁ : LongChain_to_Root G H m chain₁)
+    (hchain₂ : LongChain_to_Root G H n chain₂)
+    (hi_pos : 0 < i) (him : i ≤ m) (hin : i ≤ n)
+    (hprev : chain₁ (i - 1) = chain₂ (i - 1))
+    (hleft :
+      haarBranchSupport (chain₁ i) = branchSupport (chain₁ (i - 1)).1)
+    (hright :
+      haarBranchSupport (chain₂ i) = branchSupport (chain₂ (i - 1)).2) :
+    Disjoint (haarBranchSupport (chain₁ m)) (haarBranchSupport (chain₂ n)) := by
+  classical
+  rcases hchain₁ with ⟨hzero₁, hmem₁, hstep₁⟩
+  have hchain₁' : LongChain_to_Root G H m chain₁ := ⟨hzero₁, hmem₁, hstep₁⟩
+  have hchain₂' : LongChain_to_Root G H n chain₂ := hchain₂
+  rcases hmem₁ (i - 1) (by omega) with ⟨level, cell, hcell, hbranch_prev⟩
+  have hside_disj :
+      Disjoint (branchSupport (chain₁ (i - 1)).1)
+        (branchSupport (chain₁ (i - 1)).2) := by
+    simpa using
+      H.branchSupport_components_disjoint G
+        ({ val := chain₁ (i - 1), property := hbranch_prev } :
+          {r : Finset (Set α) × Finset (Set α) //
+            r ∈ (H.binaryRefinement.tree level cell hcell).Branches})
+  have hdisj_i :
+      Disjoint (haarBranchSupport (chain₁ i)) (haarBranchSupport (chain₂ i)) := by
+    rw [hleft, hright, ← hprev]
+    exact hside_disj
+  have hsub₁ :
+      haarBranchSupport (chain₁ m) ⊆ haarBranchSupport (chain₁ i) :=
+    hchain₁'.support_mono_le G H him le_rfl
+  have hsub₂ :
+      haarBranchSupport (chain₂ n) ⊆ haarBranchSupport (chain₂ i) :=
+    hchain₂'.support_mono_le G H hin le_rfl
+  exact (hdisj_i.mono_left hsub₁).mono_right hsub₂
+
+/-- Symmetric version: the first chain takes the right side and the second takes the left side. -/
+theorem LongChain_to_Root.disjoint_final_of_split_right_left
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G))
+    {m n i : ℕ}
+    {chain₁ chain₂ : ℕ → (Finset (Set α) × Finset (Set α))}
+    (hchain₁ : LongChain_to_Root G H m chain₁)
+    (hchain₂ : LongChain_to_Root G H n chain₂)
+    (hi_pos : 0 < i) (him : i ≤ m) (hin : i ≤ n)
+    (hprev : chain₁ (i - 1) = chain₂ (i - 1))
+    (hright :
+      haarBranchSupport (chain₁ i) = branchSupport (chain₁ (i - 1)).2)
+    (hleft :
+      haarBranchSupport (chain₂ i) = branchSupport (chain₂ (i - 1)).1) :
+    Disjoint (haarBranchSupport (chain₁ m)) (haarBranchSupport (chain₂ n)) := by
+  classical
+  have hdisj :=
+    LongChain_to_Root.disjoint_final_of_split_left_right
+      G H hchain₂ hchain₁ hi_pos hin him hprev.symm hleft (by simpa [hprev] using hright)
+  exact hdisj.symm
+
+/-- If two long chains with the same endpoint have no split before `min m n`, then they agree
+up to `min m n`. -/
+lemma LongChain_to_Root.eq_on_common_prefix_of_no_split
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G))
+    {m n : ℕ}
+    {chain₁ chain₂ : ℕ → (Finset (Set α) × Finset (Set α))}
+    (hchain₁ : LongChain_to_Root G H m chain₁)
+    (hchain₂ : LongChain_to_Root G H n chain₂)
+    (hno_split :
+      ∀ i, 0 < i → i ≤ m → i ≤ n →
+        chain₁ (i - 1) = chain₂ (i - 1) → chain₁ i = chain₂ i)
+    {i : ℕ} (him : i ≤ m) (hin : i ≤ n) :
+    chain₁ i = chain₂ i := by
+  induction i with
+  | zero =>
+      rcases hchain₁ with ⟨hzero₁, _hmem₁, _hstep₁⟩
+      rcases hchain₂ with ⟨hzero₂, _hmem₂, _hstep₂⟩
+      exact hzero₁.trans hzero₂.symm
+  | succ i ih =>
+      have hprev : chain₁ (i + 1 - 1) = chain₂ (i + 1 - 1) := by
+        simpa using ih (by omega) (by omega)
+      exact hno_split (i + 1) (by omega) him hin hprev
+
+/-- Uniqueness of a long chain ending at a fixed branch. -/
+theorem LongChain_to_Root.unique_of_same_final
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G))
+    {m n : ℕ}
+    {chain₁ chain₂ : ℕ → (Finset (Set α) × Finset (Set α))}
+    (hchain₁ : LongChain_to_Root G H m chain₁)
+    (hchain₂ : LongChain_to_Root G H n chain₂)
+    (hend : chain₁ m = chain₂ n) :
+    m = n ∧ ∀ i ≤ m, chain₁ i = chain₂ i := by
+  classical
+  have hmem₁ := hchain₁.2.1
+  have hstep₁ := hchain₁.2.2
+  have hmem₂ := hchain₂.2.1
+  have hstep₂ := hchain₂.2.2
+  have hfinal_support :
+      haarBranchSupport (chain₁ m) = haarBranchSupport (chain₂ n) := by
+    rw [hend]
+  have hno_split :
+      ∀ i, 0 < i → i ≤ m → i ≤ n →
+        chain₁ (i - 1) = chain₂ (i - 1) → chain₁ i = chain₂ i := by
+    intro i hi_pos him hin hprev
+    by_contra hne
+    have hk₁ : i - 1 < m := by omega
+    have hk₂ : i - 1 < n := by omega
+    have hsucc : i - 1 + 1 = i := Nat.sub_add_cancel hi_pos
+    have hstep_i₁ := hstep₁ (i - 1) hk₁
+    have hstep_i₂ := hstep₂ (i - 1) hk₂
+    rcases hstep_i₁ with hleft₁ | hright₁ <;> rcases hstep_i₂ with hleft₂ | hright₂
+    · have hleft₁' :
+          haarBranchSupport (chain₁ i) = branchSupport (chain₁ (i - 1)).1 := by
+        simpa [hsucc] using hleft₁
+      have hleft₂' :
+          haarBranchSupport (chain₂ i) = branchSupport (chain₂ (i - 1)).1 := by
+        simpa [hsucc] using hleft₂
+      have hsupport_eq :
+          haarBranchSupport (chain₁ i) = haarBranchSupport (chain₂ i) := by
+        rw [hleft₁', hleft₂', hprev]
+      rcases hmem₁ i him with ⟨level₁, cell₁, hcell₁, hbranch₁⟩
+      rcases hmem₂ i hin with ⟨level₂, cell₂, hcell₂, hbranch₂⟩
+      exact hne
+        ((H.haarBranchSupport_eq_iff_eq_global G level₁ level₂ cell₁ cell₂
+          hcell₁ hcell₂ ⟨chain₁ i, hbranch₁⟩ ⟨chain₂ i, hbranch₂⟩).1 hsupport_eq)
+    · have hleft :
+          haarBranchSupport (chain₁ i) = branchSupport (chain₁ (i - 1)).1 := by
+        simpa [hsucc] using hleft₁
+      have hright :
+          haarBranchSupport (chain₂ i) = branchSupport (chain₂ (i - 1)).2 := by
+        simpa [hsucc] using hright₂
+      have hdisj :=
+        LongChain_to_Root.disjoint_final_of_split_left_right
+          G H hchain₁ hchain₂ hi_pos him hin hprev hleft hright
+      have hnonempty :
+          (haarBranchSupport (chain₂ n)).Nonempty :=
+        hchain₂.final_support_nonempty G H
+      rcases hnonempty with ⟨x, hx⟩
+      exact (Set.disjoint_left.mp hdisj (by simpa [hfinal_support] using hx) hx).elim
+    · have hright :
+          haarBranchSupport (chain₁ i) = branchSupport (chain₁ (i - 1)).2 := by
+        simpa [hsucc] using hright₁
+      have hleft :
+          haarBranchSupport (chain₂ i) = branchSupport (chain₂ (i - 1)).1 := by
+        simpa [hsucc] using hleft₂
+      have hdisj :=
+        LongChain_to_Root.disjoint_final_of_split_right_left
+          G H hchain₁ hchain₂ hi_pos him hin hprev hright hleft
+      have hnonempty :
+          (haarBranchSupport (chain₂ n)).Nonempty :=
+        hchain₂.final_support_nonempty G H
+      rcases hnonempty with ⟨x, hx⟩
+      exact (Set.disjoint_left.mp hdisj (by simpa [hfinal_support] using hx) hx).elim
+    · have hright₁' :
+          haarBranchSupport (chain₁ i) = branchSupport (chain₁ (i - 1)).2 := by
+        simpa [hsucc] using hright₁
+      have hright₂' :
+          haarBranchSupport (chain₂ i) = branchSupport (chain₂ (i - 1)).2 := by
+        simpa [hsucc] using hright₂
+      have hsupport_eq :
+          haarBranchSupport (chain₁ i) = haarBranchSupport (chain₂ i) := by
+        rw [hright₁', hright₂', hprev]
+      rcases hmem₁ i him with ⟨level₁, cell₁, hcell₁, hbranch₁⟩
+      rcases hmem₂ i hin with ⟨level₂, cell₂, hcell₂, hbranch₂⟩
+      exact hne
+        ((H.haarBranchSupport_eq_iff_eq_global G level₁ level₂ cell₁ cell₂
+          hcell₁ hcell₂ ⟨chain₁ i, hbranch₁⟩ ⟨chain₂ i, hbranch₂⟩).1 hsupport_eq)
+  have hprefix :
+      ∀ i, i ≤ m → i ≤ n → chain₁ i = chain₂ i := by
+    intro i him hin
+    exact LongChain_to_Root.eq_on_common_prefix_of_no_split
+      G H hchain₁ hchain₂ hno_split him hin
+  have hmn : m = n := by
+    by_cases hle : m ≤ n
+    · by_contra hne
+      have hlt : m < n := lt_of_le_of_ne hle hne
+      have hsub_ne := hchain₂.support_mono G H hlt le_rfl
+      have h_eq_m : chain₁ m = chain₂ m := hprefix m le_rfl hle
+      exact hsub_ne.2 (by
+        rw [← hfinal_support]
+        simpa [h_eq_m])
+    · have hlt : n < m := by omega
+      have hsub_ne := hchain₁.support_mono G H hlt le_rfl
+      have h_eq_n : chain₁ n = chain₂ n := hprefix n (Nat.le_of_lt hlt) le_rfl
+      exfalso
+      exact (hsub_ne.2 (by
+        rw [hfinal_support]
+        simpa [h_eq_n]))
+  subst n
+  exact ⟨rfl, by
+    intro i hi
+    exact hprefix i hi hi⟩
 
 omit [MeasurableSpace α] in
 lemma branchSupport_singleton [DecidableEq (Set α)] (s : Set α) :
