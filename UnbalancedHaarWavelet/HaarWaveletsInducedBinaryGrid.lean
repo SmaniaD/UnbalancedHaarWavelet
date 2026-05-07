@@ -1024,57 +1024,19 @@ noncomputable def HaarSystem.cellDeepness
         (Classical.choose_spec (T.TopsareTops cell htop)).1
       H.cellDeepness G level parent hparent + chainLength hparentBranch + 1
 
-lemma HaarSystem.cellDeepness_chosenParent_lt_child
-    (G : Grid (α := α)) [DecidableEq (Set α)]
-    (H : HaarSystem (G := G))
-    {level : ℕ} {child : Set α}
-    (hchild : child ∈ G.grid.partitions (level + 1)) :
-    let parent : Set α := Classical.choose (G.grid.nested level child hchild)
-    let hparent : parent ∈ G.grid.partitions level :=
-      (Classical.choose_spec (G.grid.nested level child hchild)).1
-    H.cellDeepness G level parent hparent
-      < H.cellDeepness G (level + 1) child hchild := by
-  classical
-  dsimp [HaarSystem.cellDeepness]
-  omega
 
-lemma HaarSystem.exists_parent_cellDeepness_lt
-    (G : Grid (α := α)) [DecidableEq (Set α)]
-    (H : HaarSystem (G := G))
-    {level : ℕ} {child : Set α}
-    (hchild : child ∈ G.grid.partitions (level + 1)) :
-    ∃ parent : Set α, ∃ hparent : parent ∈ G.grid.partitions level,
-      child ⊆ parent ∧
-      H.cellDeepness G level parent hparent
-        < H.cellDeepness G (level + 1) child hchild := by
-  classical
-  let parent : Set α := Classical.choose (G.grid.nested level child hchild)
-  have hparent : parent ∈ G.grid.partitions level :=
-    (Classical.choose_spec (G.grid.nested level child hchild)).1
-  have hchild_parent : child ⊆ parent :=
-    (Classical.choose_spec (G.grid.nested level child hchild)).2
-  refine ⟨parent, hparent, hchild_parent, ?_⟩
-  exact H.cellDeepness_chosenParent_lt_child G hchild
-
-lemma HaarSystem.cellDeepness_pos_of_positive_level
-    (G : Grid (α := α)) [DecidableEq (Set α)]
-    (H : HaarSystem (G := G))
-    {level : ℕ} {cell : Set α}
-    (hcell : cell ∈ G.grid.partitions (level + 1)) :
-    0 < H.cellDeepness G (level + 1) cell hcell := by
-  rcases H.exists_parent_cellDeepness_lt G hcell with
-    ⟨parent, hparent, hcell_parent, hlt⟩
-  omega
 
 /-- The deepness of a globally indexed Haar branch.
 
-It is the induced-binary-grid depth of the ambient grid cell plus the length of the chain inside
-that cell's binary refinement tree from its root branch to the chosen branch. -/
+It is the length of the unique long chain, starting at the global root branch, whose endpoint
+is the indexed branch. -/
 noncomputable def HaarSystem.Index.deepness
     (G : Grid (α := α)) [DecidableEq (Set α)]
     (H : HaarSystem (G := G))
     (i : H.Index) : ℕ :=
-  H.cellDeepness G i.level i.cell i.hcell + chainLength i.branch.2
+  Classical.choose
+    (H.exists_LongChain_to_Root_finish_branch G i.hcell i.branch.2)
+
 
 @[simp]
 lemma HaarSystem.Index.deepness_mk
@@ -1085,16 +1047,10 @@ lemma HaarSystem.Index.deepness_mk
       r ∈ (H.binaryRefinement.tree level cell hcell).Branches}) :
     (HaarSystem.Index.deepness G H
       ({ level := level, cell := cell, hcell := hcell, branch := branch } : H.Index))
-      = H.cellDeepness G level cell hcell + chainLength branch.2 := by
+      =
+        Classical.choose
+          (H.exists_LongChain_to_Root_finish_branch G hcell branch.2) := by
   rfl
-
-lemma HaarSystem.Index.cellDeepness_le_deepness
-    (G : Grid (α := α)) [DecidableEq (Set α)]
-    (H : HaarSystem (G := G))
-    (i : H.Index) :
-    H.cellDeepness G i.level i.cell i.hcell ≤ i.deepness G H := by
-  dsimp [HaarSystem.Index.deepness]
-  omega
 
 lemma HaarSystem.Index.branchSupport_subset_ambient_cell
     (G : Grid (α := α)) [DecidableEq (Set α)]
@@ -1466,6 +1422,27 @@ theorem LongChain_to_Root.unique_of_same_final
   exact ⟨rfl, by
     intro i hi
     exact hprefix i hi hi⟩
+
+/-- The chosen deepness is characterized by any long chain ending at the indexed branch. -/
+lemma HaarSystem.Index.deepness_eq_of_LongChain_to_Root
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G))
+    (i : H.Index)
+    {n : ℕ} {chain : ℕ → (Finset (Set α) × Finset (Set α))}
+    (hchain : LongChain_to_Root G H n chain)
+    (hend : chain n = i.branch.1) :
+    i.deepness G H = n := by
+  classical
+  let h_exists := H.exists_LongChain_to_Root_finish_branch G i.hcell i.branch.2
+  let n₀ := Classical.choose h_exists
+  let chain₀ := Classical.choose (Classical.choose_spec h_exists)
+  have hchosen :
+      LongChain_to_Root G H n₀ chain₀ ∧ chain₀ n₀ = i.branch.1 :=
+    Classical.choose_spec (Classical.choose_spec h_exists)
+  have huniq :=
+    LongChain_to_Root.unique_of_same_final G H hchosen.1 hchain
+      (by rw [hchosen.2, hend])
+  exact huniq.1
 
 omit [MeasurableSpace α] in
 lemma branchSupport_singleton [DecidableEq (Set α)] (s : Set α) :
