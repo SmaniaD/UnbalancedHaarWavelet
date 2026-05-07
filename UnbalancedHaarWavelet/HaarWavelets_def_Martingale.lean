@@ -10,6 +10,7 @@ import UnbalancedHaarWavelet.HaarWaveletsInducedBinaryGrid
 import UnbalancedHaarWavelet.HaarWaveletsLinearCombinations
 import Mathlib.Probability.Martingale.Basic
 
+set_option linter.style.header false
 
 namespace UnbalancedHaarWavelet
 
@@ -844,47 +845,55 @@ theorem HaarSystem.martingaleFromPartition_increment_eq_projectionCoeff_mul_wave
   have hM_n : M n x = (IA + IB) / μP := by
     have hP_int : ∫ y in P, f y ∂G.μ = IA + IB := by
       rw [hP_eq_union, MeasureTheory.setIntegral_union hAB hB_meas hf.integrableOn hf.integrableOn]
-      rfl
     calc
       M n x = (∫ y in P, f y ∂G.μ) / (G.μ P).toReal :=
         H.martingaleFromPartition_eq_average_on_node G f hP hx
       _ = (IA + IB) / μP := by simp [IA, μP, hP_int]
   have hnum : ∫ y, f y * H.wavelet G i y ∂G.μ = IA / μA - IB / μB := by
     have hIntA : MeasureTheory.Integrable
-        (fun y => Set.indicator A (fun z => f z * (1 / μA)) y) G.μ :=
-      (hf.mul_const (1 / μA)).indicator hA_meas
+        (fun y => Set.indicator A (fun z => (1 / μA) * f z) y) G.μ :=
+      by simpa [mul_comm] using (hf.mul_const (1 / μA)).indicator hA_meas
     have hIntB : MeasureTheory.Integrable
-        (fun y => Set.indicator B (fun z => f z * (1 / μB)) y) G.μ :=
-      (hf.mul_const (1 / μB)).indicator hB_meas
+        (fun y => Set.indicator B (fun z => (1 / μB) * f z) y) G.μ :=
+      by simpa [mul_comm] using (hf.mul_const (1 / μB)).indicator hB_meas
     have hfun :
         (fun y => f y * H.wavelet G i y) =
-          fun y => Set.indicator A (fun z => f z * (1 / μA)) y -
-            Set.indicator B (fun z => f z * (1 / μB)) y := by
+          fun y => Set.indicator A (fun z => (1 / μA) * f z) y -
+            Set.indicator B (fun z => (1 / μB) * f z) y := by
       funext y
       by_cases hyA : y ∈ A
       · have hyB : y ∉ B := by
           intro hyB
           exact (Set.disjoint_left.mp hAB hyA hyB).elim
         simp [HaarSystem.wavelet, H.haarWavelets_def, i, A, B, haarWavelet, hyA, hyB,
-          μA, μB, mul_assoc]
+          μA, μB, mul_comm]
       · by_cases hyB : y ∈ B
         · simp [HaarSystem.wavelet, H.haarWavelets_def, i, A, B, haarWavelet, hyA, hyB,
-            μA, μB, mul_assoc]
+            μA, μB, mul_comm]
         · simp [HaarSystem.wavelet, H.haarWavelets_def, i, A, B, haarWavelet, hyA, hyB,
-            μA, μB, mul_assoc]
+            μA, μB, mul_comm]
     rw [hfun, MeasureTheory.integral_sub hIntA hIntB]
-    simp [IA, IB, hA_meas, hB_meas, μA, μB, div_eq_mul_inv, mul_comm, mul_left_comm, mul_assoc]
+    rw [MeasureTheory.integral_indicator hA_meas, MeasureTheory.integral_indicator hB_meas]
+    have hAint : ∫ x in A, (1 / μA) * f x ∂G.μ = IA / μA := by
+      change ∫ x in A, (1 / μA) • f x ∂G.μ = IA / μA
+      rw [MeasureTheory.integral_smul]
+      simp [IA, div_eq_mul_inv, smul_eq_mul, mul_comm]
+    have hBint : ∫ x in B, (1 / μB) * f x ∂G.μ = IB / μB := by
+      change ∫ x in B, (1 / μB) • f x ∂G.μ = IB / μB
+      rw [MeasureTheory.integral_smul]
+      simp [IB, div_eq_mul_inv, smul_eq_mul, mul_comm]
+    rw [hAint, hBint]
   have hden : ∫ y, H.wavelet G i y * H.wavelet G i y ∂G.μ = 1 / μA + 1 / μB := by
     have hIntA : MeasureTheory.Integrable
-        (fun y => Set.indicator A (fun _ => (1 / μA) ^ 2) y) G.μ :=
-      (MeasureTheory.integrable_const ((1 / μA) ^ 2)).indicator hA_meas
+        (fun y => Set.indicator A (fun _ => (1 / μA) * (1 / μA)) y) G.μ :=
+      (MeasureTheory.integrable_const ((1 / μA) * (1 / μA))).indicator hA_meas
     have hIntB : MeasureTheory.Integrable
-        (fun y => Set.indicator B (fun _ => (1 / μB) ^ 2) y) G.μ :=
-      (MeasureTheory.integrable_const ((1 / μB) ^ 2)).indicator hB_meas
+        (fun y => Set.indicator B (fun _ => (1 / μB) * (1 / μB)) y) G.μ :=
+      (MeasureTheory.integrable_const ((1 / μB) * (1 / μB))).indicator hB_meas
     have hfun :
         (fun y => H.wavelet G i y * H.wavelet G i y) =
-          fun y => Set.indicator A (fun _ => (1 / μA) ^ 2) y +
-            Set.indicator B (fun _ => (1 / μB) ^ 2) y := by
+          fun y => Set.indicator A (fun _ => (1 / μA) * (1 / μA)) y +
+            Set.indicator B (fun _ => (1 / μB) * (1 / μB)) y := by
       funext y
       by_cases hyA : y ∈ A
       · have hyB : y ∉ B := by
@@ -895,13 +904,21 @@ theorem HaarSystem.martingaleFromPartition_increment_eq_projectionCoeff_mul_wave
         · simp [HaarSystem.wavelet, H.haarWavelets_def, i, A, B, haarWavelet, hyA, hyB, μA, μB]
         · simp [HaarSystem.wavelet, H.haarWavelets_def, i, A, B, haarWavelet, hyA, hyB, μA, μB]
     rw [hfun, MeasureTheory.integral_add hIntA hIntB]
-    simp [hA_meas, hB_meas, μA, μB, div_eq_mul_inv, hμA_ne, hμB_ne]
+    rw [MeasureTheory.integral_indicator hA_meas, MeasureTheory.integral_indicator hB_meas]
+    rw [MeasureTheory.setIntegral_const, MeasureTheory.setIntegral_const]
+    rw [MeasureTheory.measureReal_def, MeasureTheory.measureReal_def]
+    change (G.μ A).toReal * ((1 / μA) * (1 / μA)) +
+        (G.μ B).toReal * ((1 / μB) * (1 / μB)) = 1 / μA + 1 / μB
+    rw [show (G.μ A).toReal = μA by rfl, show (G.μ B).toReal = μB by rfl]
+    simp [div_eq_mul_inv]
     field_simp [hμA_ne, hμB_ne]
-    ring
-  have hcoeff : H.projectionCoeff G f i = (μB / μP) * (IA / μA) - (μA / μP) * (IB / μB) := by
+  have hcoeff : H.projectionCoeff G f i = (μB / μP) * IA - (μA / μP) * IB := by
     rw [HaarSystem.projectionCoeff, hnum, hden]
-    field_simp [hμA_ne, hμB_ne, hμP_ne, hμP_eq]
-    ring
+    rw [hμP_eq]
+    have hsum_ne : μA + μB ≠ 0 := by simpa [hμP_eq] using hμP_ne
+    have hsum_ne' : μB + μA ≠ 0 := by simpa [add_comm] using hsum_ne
+    field_simp [hμA_ne, hμB_ne, hsum_ne, hsum_ne']
+    ring_nf
   by_cases hxA : x ∈ A
   · have hxB : x ∉ B := by
       intro hxB
@@ -912,13 +929,14 @@ theorem HaarSystem.martingaleFromPartition_increment_eq_projectionCoeff_mul_wave
           H.martingaleFromPartition_eq_average_on_node G f hA_mem hxA
         _ = IA / μA := by simp [IA, μA]
     have hwave : H.wavelet G i x = 1 / μA := by
-      simp [HaarSystem.wavelet, H.haarWavelets_def, i, A, B, haarWavelet, hxA, hxB, μA, μB]
+      simp [HaarSystem.wavelet, H.haarWavelets_def, i, A, B, haarWavelet, hxA, hxB, μA]
     calc
       M (n + 1) x - M n x = IA / μA - (IA + IB) / μP := by rw [hMx, hM_n]
       _ = H.projectionCoeff G f i * H.wavelet G i x := by
-        rw [hcoeff, hwave]
-        field_simp [hμA_ne, hμB_ne, hμP_ne, hμP_eq]
-        ring
+        rw [hcoeff, hwave, hμP_eq]
+        have hsum_ne : μA + μB ≠ 0 := by simpa [hμP_eq] using hμP_ne
+        field_simp [hμA_ne, hμB_ne, hsum_ne]
+        ring_nf
   · have hxB : x ∈ B := by
       have hxUnion : x ∈ A ∪ B := by simpa [hP_eq_union] using hx
       exact hxUnion.resolve_left hxA
@@ -928,13 +946,14 @@ theorem HaarSystem.martingaleFromPartition_increment_eq_projectionCoeff_mul_wave
           H.martingaleFromPartition_eq_average_on_node G f hB_mem hxB
         _ = IB / μB := by simp [IB, μB]
     have hwave : H.wavelet G i x = -(1 / μB) := by
-      simp [HaarSystem.wavelet, H.haarWavelets_def, i, A, B, haarWavelet, hxA, hxB, μA, μB]
+      simp [HaarSystem.wavelet, H.haarWavelets_def, i, A, B, haarWavelet, hxA, hxB, μB]
     calc
       M (n + 1) x - M n x = IB / μB - (IA + IB) / μP := by rw [hMx, hM_n]
       _ = H.projectionCoeff G f i * H.wavelet G i x := by
-        rw [hcoeff, hwave]
-        field_simp [hμA_ne, hμB_ne, hμP_ne, hμP_eq]
-        ring
+        rw [hcoeff, hwave, hμP_eq]
+        have hsum_ne : μA + μB ≠ 0 := by simpa [hμP_eq] using hμP_ne
+        field_simp [hμA_ne, hμB_ne, hsum_ne]
+        ring_nf
 
 /-- There exists a filtration generated by the depth-`n` partitions and a martingale on that
 filtration whose value on each partition cell is the average of `f` over that cell, and whose
@@ -947,7 +966,7 @@ theorem HaarSystem.exists_filtration_martingale_average
       (∀ n, ℱ n = MeasurableSpace.generateFrom {S : Set α | S ∈ H.nodesAtDeepness G n}) ∧
       ∃ F : ℕ → α → ℝ,
         MeasureTheory.Martingale F ℱ G.μ ∧
-        ∀ n {P : Set α} (hP : P ∈ H.nodesAtDeepness G n) {x : α} (hx : x ∈ P),
+        ∀ n {P : Set α} (hP : P ∈ H.nodesAtDeepness G n) {x : α}, x ∈ P →
           F n x = (∫ y in P, f y ∂G.μ) / (G.μ P).toReal ∧
           F (n + 1) x - F n x =
             H.projectionCoeff G f (H.indexOfNode G n P hP) *
