@@ -2531,7 +2531,8 @@ theorem HaarSystem.binaryGrid_structure
   (∀ level cell (hcell : cell ∈ G.grid.partitions level)
       (p : Finset (Set α) × Finset (Set α)),
       p ∈ (H.binaryRefinement.tree level cell hcell).Branches →
-      ∃! n, haarBranchSupport p ∈ H.nodesAtDeepness G n) := by
+      ∃! n, haarBranchSupport p ∈ H.nodesAtDeepness G n) ∧
+  (∀ n, (H.nodesAtDeepness G n).Finite) := by
   classical
   have hnode_split :
       ∀ n S,
@@ -2558,27 +2559,10 @@ theorem HaarSystem.binaryGrid_structure
     · rw [← hiS]
       exact haarBranchSupport_eq_union_branchSupport i.branch.1
     · simpa using H.branchSupport_components_disjoint G i.branch
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · exact H.nodesAtDeepness_zero_eq_singleton G
-  · intro n S₁ S₂ hS₁ hS₂
-    exact H.nodesAtDeepness_eq_or_disjoint G n S₁ S₂ hS₁ hS₂
-  · intro n
-    apply Set.eq_univ_iff_forall.2
-    intro x
-    induction n with
-    | zero =>
-        rw [H.nodesAtDeepness_zero_eq_singleton G]
-        simp
-    | succ n ih =>
-        rcases Set.mem_iUnion.1 ih with ⟨S, hxS⟩
-        rcases Set.mem_iUnion.1 hxS with ⟨hS, hxS⟩
-        rcases hnode_split n S hS with
-          ⟨_i, p, _hiS, _hp, _hS_eq, hA_mem, hB_mem, _hA_sub, _hB_sub, hunion, _hdisj⟩
-        rw [hunion] at hxS
-        rcases hxS with hxA | hxB
-        · exact Set.mem_iUnion.2 ⟨_, Set.mem_iUnion.2 ⟨hA_mem, hxA⟩⟩
-        · exact Set.mem_iUnion.2 ⟨_, Set.mem_iUnion.2 ⟨hB_mem, hxB⟩⟩
-  · intro n S hn0 hS
+  have hparent_exists :
+      ∀ n S, n ≠ 0 → S ∈ H.nodesAtDeepness G n →
+        ∃ S' ∈ H.nodesAtDeepness G (n - 1), S ⊆ S' := by
+    intro n S hn0 hS
     rcases hS with ⟨i, hiS, hideep⟩
     let h_exists := H.exists_LongChain_to_Root_finish_branch G i.hcell i.branch.2
     let chain := Classical.choose (Classical.choose_spec h_exists)
@@ -2612,6 +2596,93 @@ theorem HaarSystem.binaryGrid_structure
         hchosen.1.support_mono_le G H (Nat.sub_le _ _) le_rfl
       rw [← hiS]
       simpa [HaarSystem.Index.branchSupport, hchosen.2, j] using hsub
+  have hfinite_nodes : ∀ n, (H.nodesAtDeepness G n).Finite := by
+    intro n
+    induction n with
+    | zero =>
+        simp [H.nodesAtDeepness_zero_eq_singleton G]
+    | succ n ih =>
+        classical
+        let parents : Finset (Set α) := ih.toFinset
+        have hsplit_exists :
+            ∀ S, S ∈ parents →
+              ∃ AB : Set α × Set α,
+                AB.1 ∈ H.nodesAtDeepness G (n + 1) ∧
+                AB.2 ∈ H.nodesAtDeepness G (n + 1) ∧
+                AB.1 ⊆ S ∧ AB.2 ⊆ S ∧
+                S = AB.1 ∪ AB.2 := by
+          intro S hS
+          have hSnode : S ∈ H.nodesAtDeepness G n := ih.mem_toFinset.mp hS
+          rcases hnode_split n S hSnode with
+            ⟨_i, p, _hiS, _hp, _hS_eq, hA_mem, hB_mem, hA_sub, hB_sub, hAB_union, _hAB_disj⟩
+          exact ⟨(UnbalancedHaarWavelet.branchSupport p.1,
+            UnbalancedHaarWavelet.branchSupport p.2),
+            hA_mem, hB_mem, hA_sub, hB_sub, hAB_union⟩
+        let childPair := fun S hS => Classical.choose (hsplit_exists S hS)
+        let children : Finset (Set α) :=
+          parents.biUnion fun S =>
+            if hS : S ∈ parents then
+              let AB := childPair S hS
+              ({AB.1, AB.2} : Finset (Set α))
+            else
+              ∅
+        refine Set.Finite.subset children.finite_toSet ?_
+        intro A hA
+        have hA_nonempty : A.Nonempty := by
+          by_contra hA_empty
+          have hA_eq : A = ∅ := Set.not_nonempty_iff_eq_empty.mp hA_empty
+          have hμ_pos : 0 < G.μ A := H.measure_pos_of_mem_nodesAtDeepness G hA
+          simp [hA_eq] at hμ_pos
+        obtain ⟨S, hS, hAS⟩ := hparent_exists (n + 1) A (Nat.succ_ne_zero n) hA
+        have hSfin : S ∈ parents := ih.mem_toFinset.mpr hS
+        have hABspec := Classical.choose_spec (hsplit_exists S hSfin)
+        have hA_eq_left_or_right : A = (childPair S hSfin).1 ∨ A = (childPair S hSfin).2 := by
+          rcases hABspec with ⟨hAB1, hAB2, _hAB1_sub, _hAB2_sub, hAB_union⟩
+          have hleft :=
+            H.nodesAtDeepness_eq_or_disjoint G (n + 1) A (childPair S hSfin).1 hA hAB1
+          rcases hleft with hleft_eq | hleft_disj
+          · exact Or.inl hleft_eq
+          have hright :=
+            H.nodesAtDeepness_eq_or_disjoint G (n + 1) A (childPair S hSfin).2 hA hAB2
+          rcases hright with hright_eq | hright_disj
+          · exact Or.inr hright_eq
+          exfalso
+          rcases hA_nonempty with ⟨x, hxA⟩
+          have hxS : x ∈ S := hAS hxA
+          have hxAB : x ∈ (childPair S hSfin).1 ∪ (childPair S hSfin).2 := by
+            rw [hAB_union] at hxS
+            exact hxS
+          rcases hxAB with hxAB1 | hxAB2
+          · exact (Set.disjoint_left.mp hleft_disj hxA hxAB1).elim
+          · exact (Set.disjoint_left.mp hright_disj hxA hxAB2).elim
+        refine Finset.mem_biUnion.mpr ⟨S, hSfin, ?_⟩
+        have hmem_pair :
+            A ∈ ({(childPair S hSfin).1, (childPair S hSfin).2} : Finset (Set α)) := by
+          rcases hA_eq_left_or_right with hA_eq | hA_eq <;> simp [hA_eq]
+        simpa [hSfin, childPair] using hmem_pair
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · exact H.nodesAtDeepness_zero_eq_singleton G
+  · intro n S₁ S₂ hS₁ hS₂
+    exact H.nodesAtDeepness_eq_or_disjoint G n S₁ S₂ hS₁ hS₂
+  · intro n
+    apply Set.eq_univ_iff_forall.2
+    intro x
+    induction n with
+    | zero =>
+        rw [H.nodesAtDeepness_zero_eq_singleton G]
+        simp
+    | succ n ih =>
+        rcases Set.mem_iUnion.1 ih with ⟨S, hxS⟩
+        rcases Set.mem_iUnion.1 hxS with ⟨hS, hxS⟩
+        rcases hnode_split n S hS with
+          ⟨_i, p, _hiS, _hp, _hS_eq, hA_mem, hB_mem, _hA_sub, _hB_sub, hunion, _hdisj⟩
+        rw [hunion] at hxS
+        rcases hxS with hxA | hxB
+        · exact Set.mem_iUnion.2 ⟨_, Set.mem_iUnion.2 ⟨hA_mem, hxA⟩⟩
+        · exact Set.mem_iUnion.2 ⟨_, Set.mem_iUnion.2 ⟨hB_mem, hxB⟩⟩
+  ·
+    intro n S hn0 hS
+    exact hparent_exists n S hn0 hS
   · intro n S hS
     rcases hnode_split n S hS with
       ⟨i, p, hiS, hp, hS_eq, hA_mem, hB_mem, hA_sub, hB_sub, hunion, hdisj⟩
@@ -2685,6 +2756,8 @@ theorem HaarSystem.binaryGrid_structure
         exact j.deepness_eq_of_LongChain_to_Root G H hchosen_i.1
           (by simpa [i, hbranch_eq] using hchosen_i.2)
       omega
+  · intro n
+    exact hfinite_nodes n
 
 
 
