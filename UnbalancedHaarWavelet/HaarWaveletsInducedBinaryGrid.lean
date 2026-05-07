@@ -2442,6 +2442,9 @@ theorem HaarSystem.binaryGrid_structure
   (∀ n S₁ S₂,
     S₁ ∈ H.nodesAtDeepness G n → S₂ ∈ H.nodesAtDeepness G n →
     S₁ = S₂ ∨ Disjoint S₁ S₂) ∧
+  (∀ n, (⋃ S : Set α, ⋃ _ : S ∈ H.nodesAtDeepness G n, S) = Set.univ) ∧
+  (∀ n, n≠ 0 → S ∈ H.nodesAtDeepness G n → ∃ S'∈ H.nodesAtDeepness G (n-1), S ⊆ S')
+    ∧
   (∀ n S, S ∈ H.nodesAtDeepness G n →
     (∃ AB : Set α × Set α,
       AB.1 ≠ AB.2 ∧
