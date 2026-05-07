@@ -26,6 +26,7 @@ noncomputable def haarBranchSupport [DecidableEq (Set α)]
   UnbalancedHaarWavelet.branchSupport (Combinatorial_Support p)
 
 omit [MeasurableSpace α] in
+/-- Monotonicity of `haarBranchSupport` with respect to inclusion of combinatorial supports. -/
 lemma haarBranchSupport_subset_of_combinatorial_subset
     [DecidableEq (Set α)]
     {p q : Finset (Set α) × Finset (Set α)}
@@ -33,6 +34,8 @@ lemma haarBranchSupport_subset_of_combinatorial_subset
     haarBranchSupport p ⊆ haarBranchSupport q := by
   simpa [haarBranchSupport] using branchSupport_mono hpq
 
+/-- If two combinatorial supports are disjoint at one partition level, then their induced
+set-theoretic Haar supports are disjoint as well. -/
 lemma haarBranchSupport_disjoint_of_combinatorial_disjoint
     (G : Grid (α := α)) [DecidableEq (Set α)]
     {n : ℕ} {p q : Finset (Set α) × Finset (Set α)}
@@ -89,6 +92,7 @@ lemma HaarSystem.haarBranchSupport_subset_cell
     (H.binaryRefinement.childs_are_children n Q hQ s).1 hs_childs
   exact hs_child.2 hxs
 
+/-- Branches attached to disjoint ambient grid cells have disjoint set-theoretic supports. -/
 lemma HaarSystem.haarBranchSupport_disjoint_of_cells_disjoint
     (G : Grid (α := α)) [DecidableEq (Set α)]
     (H : HaarSystem (G := G))
@@ -103,6 +107,8 @@ lemma HaarSystem.haarBranchSupport_disjoint_of_cells_disjoint
   exact (hQP.mono_left (H.haarBranchSupport_subset_cell G q)).mono_right
     (H.haarBranchSupport_subset_cell G p)
 
+/-- A subset of the left side of a branch cannot have the same measure as the whole branch
+support. -/
 lemma HaarSystem.measure_ne_of_subset_branchSupport_left
     (G : Grid (α := α)) [DecidableEq (Set α)]
     (H : HaarSystem (G := G))
@@ -166,6 +172,8 @@ lemma HaarSystem.measure_ne_of_subset_branchSupport_left
       _ = G.μ A := h_eq.symm
   exact not_lt_of_ge hle_A hlt_union
 
+/-- A subset of the right side of a branch cannot have the same measure as the whole branch
+support. -/
 lemma HaarSystem.measure_ne_of_subset_branchSupport_right
     (G : Grid (α := α)) [DecidableEq (Set α)]
     (H : HaarSystem (G := G))
@@ -533,6 +541,8 @@ theorem HaarSystem.exists_LocalChain_to_Root_finish_branch
         simp [haarBranchSupport, hstep]
   · exact ChainToRoot_end hbranch
 
+/-- If `q` occurs at position `i` along the chain from `p` to the root, then `i` is exactly the
+chain length of `q`. -/
 lemma chainLength_eq_of_chainToRoot_eq
     {β : Type*} [DecidableEq β]
     {T : BinaryTreeWithRootandTops β}
@@ -773,6 +783,7 @@ noncomputable def HaarSystem.Index.branchSupport
     (i : H.Index) : Set α :=
   haarBranchSupport i.branch.1
 
+/-- Every globally indexed branch support has positive measure. -/
 lemma HaarSystem.Index.measure_branchSupport_pos
     (G : Grid (α := α)) [DecidableEq (Set α)]
     (H : HaarSystem (G := G))
@@ -981,6 +992,7 @@ theorem HaarSystem.exists_LongChain_to_Root_finish_branch
         have hsub : offset + m - offset = m := by omega
         simpa [chain, hnot, hsub, m] using ChainToRoot_end hbranch
 
+/-- The root branch of any binary tree has chain length zero. -/
 lemma HaarSystem.chainLength_root
     {β : Type*} [DecidableEq β]
     {T : BinaryTreeWithRootandTops β} :
@@ -1006,6 +1018,7 @@ lemma HaarSystem.chainLength_root
 
 
 
+/-- The support of a globally indexed branch is contained in its ambient cell. -/
 lemma HaarSystem.Index.branchSupport_subset_ambient_cell
     (G : Grid (α := α)) [DecidableEq (Set α)]
     (H : HaarSystem (G := G))
@@ -1015,6 +1028,7 @@ lemma HaarSystem.Index.branchSupport_subset_ambient_cell
   exact H.haarBranchSupport_subset_cell G branch
 
 omit [MeasurableSpace α] in
+/-- The left combinatorial side of a branch is contained in the full Haar branch support. -/
 lemma branchSupport_left_subset_haarBranchSupport [DecidableEq (Set α)]
     (p : Finset (Set α) × Finset (Set α)) :
     UnbalancedHaarWavelet.branchSupport p.1 ⊆ haarBranchSupport p := by
@@ -1022,6 +1036,7 @@ lemma branchSupport_left_subset_haarBranchSupport [DecidableEq (Set α)]
     branchSupport_mono (Finset.subset_union_left (s₁ := p.1) (s₂ := p.2))
 
 omit [MeasurableSpace α] in
+/-- The right combinatorial side of a branch is contained in the full Haar branch support. -/
 lemma branchSupport_right_subset_haarBranchSupport [DecidableEq (Set α)]
     (p : Finset (Set α) × Finset (Set α)) :
     UnbalancedHaarWavelet.branchSupport p.2 ⊆ haarBranchSupport p := by
@@ -1029,6 +1044,7 @@ lemma branchSupport_right_subset_haarBranchSupport [DecidableEq (Set α)]
     branchSupport_mono (Finset.subset_union_right (s₁ := p.1) (s₂ := p.2))
 
 omit [MeasurableSpace α] in
+/-- The Haar branch support is the union of the supports of its left and right sides. -/
 lemma haarBranchSupport_eq_union_branchSupport [DecidableEq (Set α)]
     (p : Finset (Set α) × Finset (Set α)) :
     haarBranchSupport p = UnbalancedHaarWavelet.branchSupport p.1 ∪ UnbalancedHaarWavelet.branchSupport p.2 := by
@@ -1054,6 +1070,7 @@ lemma haarBranchSupport_eq_union_branchSupport [DecidableEq (Set α)]
     · exact branchSupport_left_subset_haarBranchSupport p hx₁
     · exact branchSupport_right_subset_haarBranchSupport p hx₂
 
+/-- The set-theoretic supports of the two sides of a branch are disjoint. -/
 lemma HaarSystem.branchSupport_components_disjoint
     (G : Grid (α := α)) [DecidableEq (Set α)]
     (H : HaarSystem (G := G))
@@ -1519,8 +1536,7 @@ noncomputable def HaarSystem.Index.deepness
     (i : H.Index) : ℕ :=
   Classical.choose
     (H.exists_LongChain_to_Root_finish_branch G i.hcell i.branch.2)
-
-
+/-- Unfolding `deepness` on an explicitly constructed index. -/
 @[simp]
 lemma HaarSystem.Index.deepness_mk
     (G : Grid (α := α)) [DecidableEq (Set α)]
@@ -1556,6 +1572,8 @@ lemma HaarSystem.Index.deepness_eq_of_LongChain_to_Root
       (by rw [hchosen.2, hend])
   exact huniq.1
 
+/-- If the support of `j` is one side of the branch indexed by `i`, then `j` lies one level
+deeper in the induced binary grid. -/
 lemma HaarSystem.Index.deepness_eq_succ_of_haarBranchSupport_eq_side
     (G : Grid (α := α)) [DecidableEq (Set α)]
     (H : HaarSystem (G := G))
@@ -1586,11 +1604,13 @@ lemma HaarSystem.Index.deepness_eq_succ_of_haarBranchSupport_eq_side
   exact j.deepness_eq_of_LongChain_to_Root G H hext.1 hext.2
 
 omit [MeasurableSpace α] in
+/-- The support of a singleton family of sets is that set itself. -/
 lemma branchSupport_singleton [DecidableEq (Set α)] (s : Set α) :
     UnbalancedHaarWavelet.branchSupport ({s} : Finset (Set α)) = s := by
   ext x
   simp [branchSupport]
 
+/-- If a branch has local chain length zero, then its support is exactly its ambient cell. -/
 lemma HaarSystem.Index.branchSupport_eq_cell_of_chainLength_zero
     (G : Grid (α := α)) [DecidableEq (Set α)]
     (H : HaarSystem (G := G))
@@ -1610,6 +1630,8 @@ lemma HaarSystem.Index.branchSupport_eq_cell_of_chainLength_zero
     (H.haarBranchSupport_root_eq_cell G
       (level := level) (cell := cell) (hcell := hcell))
 
+/-- Any indexed branch of positive local chain length has a parent branch support one deepness
+level above containing it. -/
 lemma HaarSystem.Index.exists_parent_branchSupport_of_chainLength_pos
     (G : Grid (α := α)) [DecidableEq (Set α)]
     (H : HaarSystem (G := G))
@@ -1686,7 +1708,7 @@ noncomputable def HaarSystem.rootIndex
     cell := Set.univ
     hcell := hrootCell
     branch := ⟨T.Root, T.RootinBranches⟩ }
-
+/-- The root index has support equal to the whole ambient space. -/
 @[simp]
 lemma HaarSystem.rootIndex_branchSupport
     (G : Grid (α := α)) [DecidableEq (Set α)]
@@ -1697,7 +1719,7 @@ lemma HaarSystem.rootIndex_branchSupport
   simpa using
     (H.haarBranchSupport_root_eq_cell G
       (level := 0) (cell := (Set.univ : Set α)))
-
+/-- The root index sits at deepness zero. -/
 @[simp]
 lemma HaarSystem.rootIndex_deepness
     (G : Grid (α := α)) [DecidableEq (Set α)]
@@ -1736,6 +1758,8 @@ noncomputable def HaarSystem.supportsAtDeepness
     (H : HaarSystem (G := G)) (n : ℕ) : Set (Set α) :=
   {S | ∃ i : H.Index, i.branchSupport G H = S ∧ i.deepness G H = n}
 
+/-- Membership in `supportsAtDeepness` is exactly the existence of an index with the prescribed
+support and deepness. -/
 lemma HaarSystem.mem_supportsAtDeepness_iff
     (G : Grid (α := α)) [DecidableEq (Set α)]
     (H : HaarSystem (G := G)) (n : ℕ) (S : Set α) :
@@ -1743,6 +1767,7 @@ lemma HaarSystem.mem_supportsAtDeepness_iff
       ∃ i : H.Index, i.branchSupport G H = S ∧ i.deepness G H = n := by
   rfl
 
+/-- Every support appearing at a fixed deepness has positive measure. -/
 lemma HaarSystem.measure_pos_of_mem_supportsAtDeepness
     (G : Grid (α := α)) [DecidableEq (Set α)]
     (H : HaarSystem (G := G)) {n : ℕ} {S : Set α}
@@ -1760,6 +1785,8 @@ noncomputable def HaarSystem.nodesAtDeepness
     (H : HaarSystem (G := G)) (n : ℕ) : Set (Set α) :=
   {S | ∃ i : H.Index, i.branchSupport G H = S ∧ i.deepness G H = n}
 
+/-- Membership in `nodesAtDeepness` is exactly the existence of an index with the prescribed
+support and deepness. -/
 lemma HaarSystem.mem_nodesAtDeepness_iff
     (G : Grid (α := α)) [DecidableEq (Set α)]
     (H : HaarSystem (G := G)) (n : ℕ) (S : Set α) :
@@ -1767,6 +1794,7 @@ lemma HaarSystem.mem_nodesAtDeepness_iff
       ∃ i : H.Index, i.branchSupport G H = S ∧ i.deepness G H = n := by
   rfl
 
+/-- Every indexed branch support belongs to the level determined by its deepness. -/
 lemma HaarSystem.branchSupport_mem_nodesAtDeepness
     (G : Grid (α := α)) [DecidableEq (Set α)]
     (H : HaarSystem (G := G))
@@ -1774,12 +1802,14 @@ lemma HaarSystem.branchSupport_mem_nodesAtDeepness
     i.branchSupport G H ∈ H.nodesAtDeepness G (i.deepness G H) := by
   exact ⟨i, rfl, rfl⟩
 
+/-- `nodesAtDeepness` and `supportsAtDeepness` are the same family of sets. -/
 lemma HaarSystem.nodesAtDeepness_eq_supportsAtDeepness
     (G : Grid (α := α)) [DecidableEq (Set α)]
     (H : HaarSystem (G := G)) (n : ℕ) :
     H.nodesAtDeepness G n = H.supportsAtDeepness G n := by
   rfl
 
+/-- Every node of the induced binary grid has positive measure. -/
 lemma HaarSystem.measure_pos_of_mem_nodesAtDeepness
     (G : Grid (α := α)) [DecidableEq (Set α)]
     (H : HaarSystem (G := G)) {n : ℕ} {S : Set α}
@@ -1858,6 +1888,8 @@ namespace UnbalancedHaarWavelet
 variable {α : Type*} [MeasurableSpace α]
 
 omit [MeasurableSpace α] in
+/-- If the combinatorial support of `q` is the left side of `p`, then `q` is exactly one level
+below `p` in local chain length. -/
 lemma chainLength_eq_succ_of_support_eq_left
     [DecidableEq (Set α)]
     {T : BinaryTreeWithRootandTops (Set α)}
@@ -1901,6 +1933,8 @@ lemma chainLength_eq_succ_of_support_eq_left
   omega
 
 omit [MeasurableSpace α] in
+/-- If the combinatorial support of `q` is the right side of `p`, then `q` is exactly one level
+below `p` in local chain length. -/
 lemma chainLength_eq_succ_of_support_eq_right
     [DecidableEq (Set α)]
     {T : BinaryTreeWithRootandTops (Set α)}
@@ -2079,6 +2113,7 @@ lemma exists_branch_support_eq_right_of_two_le_card_local
         omega
   exact maximal_compact_inside_p2 hp ⟨q, hq, hq_sub_p2⟩
 
+/-- The support of the left side of any indexed branch appears at the next deepness level. -/
 lemma HaarSystem.Index.left_branchSupport_mem_nodesAtDeepness_succ
     (G : Grid (α := α)) [DecidableEq (Set α)]
     (H : HaarSystem (G := G))
@@ -2170,6 +2205,7 @@ lemma HaarSystem.Index.left_branchSupport_mem_nodesAtDeepness_succ
           G H parentIndex j hstep
       simpa [j, parentIndex] using hdeep
 
+/-- The support of the right side of any indexed branch appears at the next deepness level. -/
 lemma HaarSystem.Index.right_branchSupport_mem_nodesAtDeepness_succ
     (G : Grid (α := α)) [DecidableEq (Set α)]
     (H : HaarSystem (G := G))
@@ -2261,6 +2297,7 @@ lemma HaarSystem.Index.right_branchSupport_mem_nodesAtDeepness_succ
           G H parentIndex j hstep
       simpa [j, parentIndex] using hdeep
 
+/-- The zero-th level of the induced binary grid consists only of the whole ambient space. -/
 lemma HaarSystem.nodesAtDeepness_zero_eq_singleton
     (G : Grid (α := α)) [DecidableEq (Set α)]
     (H : HaarSystem (G := G)) :
@@ -2295,6 +2332,7 @@ lemma HaarSystem.nodesAtDeepness_zero_eq_singleton
     subst S
     simpa using H.branchSupport_mem_nodesAtDeepness G (H.rootIndex G)
 
+/-- Two nodes at the same deepness are either identical or disjoint. -/
 lemma HaarSystem.nodesAtDeepness_eq_or_disjoint
     (G : Grid (α := α)) [DecidableEq (Set α)]
     (H : HaarSystem (G := G))
@@ -2336,6 +2374,8 @@ lemma HaarSystem.nodesAtDeepness_eq_or_disjoint
     dsimp [HaarSystem.Index.branchSupport]
     simpa [hchosen_i.2, hchosen_j.2] using hdisj
 
+/-- Any two binary decompositions of the same node into children at the next deepness agree up
+to swapping the two children. -/
 lemma HaarSystem.binaryChildren_unique_up_to_swap
     (G : Grid (α := α)) [DecidableEq (Set α)]
     (H : HaarSystem (G := G))
@@ -2427,14 +2467,32 @@ lemma HaarSystem.binaryChildren_unique_up_to_swap
 
 
 
-/-- Estrutura da sequência de partições induzidas pelos suportes dos ramos do sistema de Haar.
-    - A partição de nível zero é {univ}.
-    - Nós de mesma profundidade são iguais ou disjuntos.
-    - Cada suporte S de profundidade n é suporte de algum branch p,
-      e seus dois lados A e B aparecem na profundidade n+1.
-    - Se S = supp(p), então S = A ∪ B com A e B disjuntos.
-    - Novo: se (a,b) é branch de alguma subtree, então haarBranchSupport (a,b)
-      pertence a alguma partição (nodesAtDeepness). -/
+/-- Main structure theorem for the binary grid induced by Haar-branch supports.
+
+This theorem packages the basic geometric properties of the family
+`H.nodesAtDeepness G n`, showing that these sets behave like the levels of a binary
+refinement grid generated by the Haar system.
+
+More precisely, it proves all of the following.
+
+- Level `0` consists exactly of the ambient space `Set.univ`.
+- At each fixed deepness, two nodes are either equal or disjoint.
+- At each deepness, the union of all nodes is `Set.univ`; equivalently, every level covers
+  the whole ambient space.
+- Every node at positive deepness is contained in some node at the previous deepness, so the
+  levels are linked by a genuine parent-child relation.
+- Every node `S` at deepness `n` splits into two distinct children at deepness `n + 1` whose
+  union is `S` and whose supports are disjoint.
+- This binary splitting is unique up to swapping the two children.
+- Every node at any deepness is realized as the support of an actual branch in one of the
+  refinement trees, and the two sides of that branch produce the corresponding children.
+- Conversely, every branch support occurring in any refinement tree belongs to a unique
+  deepness level.
+
+Taken together, these statements show that the supports of Haar branches form a canonical
+binary grid: each level is a partition of the ambient space, each node has a predecessor
+except at the root, each node has exactly two children up to order, and every branch support
+appears at one and only one level of this induced grid. -/
 theorem HaarSystem.binaryGrid_structure
     (G : Grid (α := α)) [DecidableEq (Set α)]
     (H : HaarSystem (G := G)) :
@@ -2443,8 +2501,8 @@ theorem HaarSystem.binaryGrid_structure
     S₁ ∈ H.nodesAtDeepness G n → S₂ ∈ H.nodesAtDeepness G n →
     S₁ = S₂ ∨ Disjoint S₁ S₂) ∧
   (∀ n, (⋃ S : Set α, ⋃ _ : S ∈ H.nodesAtDeepness G n, S) = Set.univ) ∧
-  (∀ n, n≠ 0 → S ∈ H.nodesAtDeepness G n → ∃ S'∈ H.nodesAtDeepness G (n-1), S ⊆ S')
-    ∧
+  (∀ n S, n ≠ 0 → S ∈ H.nodesAtDeepness G n →
+    ∃ S' ∈ H.nodesAtDeepness G (n - 1), S ⊆ S') ∧
   (∀ n S, S ∈ H.nodesAtDeepness G n →
     (∃ AB : Set α × Set α,
       AB.1 ≠ AB.2 ∧
@@ -2500,10 +2558,60 @@ theorem HaarSystem.binaryGrid_structure
     · rw [← hiS]
       exact haarBranchSupport_eq_union_branchSupport i.branch.1
     · simpa using H.branchSupport_components_disjoint G i.branch
-  refine ⟨?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · exact H.nodesAtDeepness_zero_eq_singleton G
   · intro n S₁ S₂ hS₁ hS₂
     exact H.nodesAtDeepness_eq_or_disjoint G n S₁ S₂ hS₁ hS₂
+  · intro n
+    apply Set.eq_univ_iff_forall.2
+    intro x
+    induction n with
+    | zero =>
+        rw [H.nodesAtDeepness_zero_eq_singleton G]
+        simp
+    | succ n ih =>
+        rcases Set.mem_iUnion.1 ih with ⟨S, hxS⟩
+        rcases Set.mem_iUnion.1 hxS with ⟨hS, hxS⟩
+        rcases hnode_split n S hS with
+          ⟨_i, p, _hiS, _hp, _hS_eq, hA_mem, hB_mem, _hA_sub, _hB_sub, hunion, _hdisj⟩
+        rw [hunion] at hxS
+        rcases hxS with hxA | hxB
+        · exact Set.mem_iUnion.2 ⟨_, Set.mem_iUnion.2 ⟨hA_mem, hxA⟩⟩
+        · exact Set.mem_iUnion.2 ⟨_, Set.mem_iUnion.2 ⟨hB_mem, hxB⟩⟩
+  · intro n S hn0 hS
+    rcases hS with ⟨i, hiS, hideep⟩
+    let h_exists := H.exists_LongChain_to_Root_finish_branch G i.hcell i.branch.2
+    let chain := Classical.choose (Classical.choose_spec h_exists)
+    have hchosen :
+        LongChain_to_Root G H n chain ∧ chain n = i.branch.1 := by
+      have hchosen' :
+          LongChain_to_Root G H (i.deepness G H) chain ∧
+            chain (i.deepness G H) = i.branch.1 := by
+        simpa [HaarSystem.Index.deepness, h_exists, chain] using
+          (Classical.choose_spec (Classical.choose_spec h_exists))
+      simpa [hideep] using hchosen'
+    have hmem_prev := hchosen.1.2.1 (n - 1) (Nat.sub_le _ _)
+    rcases hmem_prev with ⟨level, cell, hcell, hbranch_prev⟩
+    let j : H.Index :=
+      { level := level
+        cell := cell
+        hcell := hcell
+        branch := ⟨chain (n - 1), hbranch_prev⟩ }
+    refine ⟨j.branchSupport G H, ?_, ?_⟩
+    · have hchain_prev : LongChain_to_Root G H (n - 1) chain := by
+        rcases hchosen.1 with ⟨hzero, hmem, hstep⟩
+        refine ⟨hzero, ?_, ?_⟩
+        · intro k hk
+          exact hmem k (le_trans hk (Nat.sub_le _ _))
+        · intro k hk
+          exact hstep k (lt_of_lt_of_le hk (Nat.sub_le _ _))
+      have hjdeep : j.deepness G H = n - 1 :=
+        j.deepness_eq_of_LongChain_to_Root G H hchain_prev rfl
+      exact ⟨j, rfl, hjdeep⟩
+    · have hsub : haarBranchSupport (chain n) ⊆ haarBranchSupport (chain (n - 1)) :=
+        hchosen.1.support_mono_le G H (Nat.sub_le _ _) le_rfl
+      rw [← hiS]
+      simpa [HaarSystem.Index.branchSupport, hchosen.2, j] using hsub
   · intro n S hS
     rcases hnode_split n S hS with
       ⟨i, p, hiS, hp, hS_eq, hA_mem, hB_mem, hA_sub, hB_sub, hunion, hdisj⟩
