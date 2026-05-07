@@ -2470,7 +2470,7 @@ theorem HaarSystem.binaryGrid_structure
   (∀ level cell (hcell : cell ∈ G.grid.partitions level)
       (p : Finset (Set α) × Finset (Set α)),
       p ∈ (H.binaryRefinement.tree level cell hcell).Branches →
-      ∃ n, haarBranchSupport p ∈ H.nodesAtDeepness G n) := by
+      ∃! n, haarBranchSupport p ∈ H.nodesAtDeepness G n) := by
   classical
   have hnode_split :
       ∀ n S,
@@ -2551,9 +2551,29 @@ theorem HaarSystem.binaryGrid_structure
         cell := cell
         hcell := hcell
         branch := ⟨p, hp⟩ }
-    refine ⟨i.deepness G H, ?_⟩
-    simpa [i, HaarSystem.Index.branchSupport] using
-      H.branchSupport_mem_nodesAtDeepness G i
+    refine ⟨i.deepness G H, ?_, ?_⟩
+    · simpa [i, HaarSystem.Index.branchSupport] using
+        H.branchSupport_mem_nodesAtDeepness G i
+    · intro m hm
+      rcases hm with ⟨j, hjS, hjdeep⟩
+      have hsupport :
+          haarBranchSupport j.branch.1 = haarBranchSupport p := by
+        simpa [HaarSystem.Index.branchSupport] using hjS
+      have hbranch_eq : j.branch.1 = p :=
+        (H.haarBranchSupport_eq_iff_eq_global G
+          j.level level j.cell cell j.hcell hcell j.branch ⟨p, hp⟩).1 hsupport
+      let h_exists_i := H.exists_LongChain_to_Root_finish_branch G hcell hp
+      let chain_i := Classical.choose (Classical.choose_spec h_exists_i)
+      have hchosen_i :
+          LongChain_to_Root G H (i.deepness G H) chain_i ∧
+            chain_i (i.deepness G H) = i.branch.1 := by
+        simpa [HaarSystem.Index.deepness, i, h_exists_i, chain_i] using
+          (Classical.choose_spec (Classical.choose_spec h_exists_i))
+      have hjdeep_eq :
+          j.deepness G H = i.deepness G H := by
+        exact j.deepness_eq_of_LongChain_to_Root G H hchosen_i.1
+          (by simpa [i, hbranch_eq] using hchosen_i.2)
+      omega
 
 
 
