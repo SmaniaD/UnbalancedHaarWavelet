@@ -22,7 +22,8 @@ rev = "main"
 
 [[require]]
 name = "Burkholder"
-path = "../Burkholder"
+git = "https://github.com/SmaniaD/Burkholder.git"
+rev = "main"
 
 [[lean_lib]]
 name = "UnbalancedHaarWavelet"
