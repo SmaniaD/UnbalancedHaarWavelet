@@ -1828,7 +1828,7 @@ theorem HaarSystem.martingaleDiff_martingaleFromPartition_finite_wavelet_sum_on_
           simp [j, hj]
         _ = 0 := by simp
 
-/-- On a node whose associated Haar index belongs to the finite sum, the martingale
+/-- On a node whose assocciated Haar index belongs to the finite sum, the martingale
 difference of the partition martingale of that sum is the corresponding Haar term. -/
 theorem HaarSystem.martingaleDiff_martingaleFromPartition_finite_wavelet_sum_on_node
     (G : Grid (α := α)) [DecidableEq (Set α)]
