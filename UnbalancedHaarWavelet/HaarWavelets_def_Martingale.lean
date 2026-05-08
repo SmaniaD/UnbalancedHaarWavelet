@@ -671,6 +671,49 @@ lemma HaarSystem.martingaleFromPartition_memLp
   exact MeasureTheory.MemLp.of_bound hmeas.aestronglyMeasurable C
     (Filter.Eventually.of_forall hbound)
 
+/-- Adding a constant to the input function adds the same constant to every level of the
+partition-average martingale. -/
+lemma HaarSystem.martingaleFromPartition_add_const
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G))
+    (f : α → ℝ) (hf : MeasureTheory.Integrable f G.μ)
+    (c : ℝ) (n : ℕ) :
+    H.martingaleFromPartition G (fun x => c + f x) n =
+      fun x => c + H.martingaleFromPartition G f n x := by
+  classical
+  letI : MeasureTheory.IsFiniteMeasure G.μ := G.isFinite
+  funext x
+  have hex : ∃ P, P ∈ H.nodesAtDeepness G n ∧ x ∈ P := by
+    have hcover := (H.nodesAtDeepness_is_partition G n).1
+    have hx : x ∈ ⋃ P ∈ H.nodesAtDeepness G n, P := hcover ▸ Set.mem_univ x
+    simpa [Set.mem_iUnion, exists_prop] using hx
+  let P : Set α := Classical.choose hex
+  have hP : P ∈ H.nodesAtDeepness G n := (Classical.choose_spec hex).1
+  have hxP : x ∈ P := (Classical.choose_spec hex).2
+  have hμP_pos : 0 < G.μ P := H.measure_pos_of_mem_nodesAtDeepness G hP
+  have hμP_lt_top : G.μ P < ⊤ := MeasureTheory.measure_lt_top (μ := G.μ) P
+  have hμP_toReal_ne : (G.μ P).toReal ≠ 0 :=
+    ne_of_gt (ENNReal.toReal_pos (ne_of_gt hμP_pos) hμP_lt_top.ne)
+  have hP_meas : MeasurableSet P := H.measurableSet_of_mem_nodesAtDeepness G hP
+  have hadd : ∫ y in P, (c + f y) ∂G.μ = (∫ y in P, c ∂G.μ) + ∫ y in P, f y ∂G.μ := by
+    have hconst_int : MeasureTheory.IntegrableOn (fun _ : α => c) P G.μ := by
+      exact MeasureTheory.integrableOn_const hμP_lt_top.ne
+    have hf_int : MeasureTheory.IntegrableOn f P G.μ := hf.integrableOn
+    simpa [MeasureTheory.IntegrableOn] using
+      (MeasureTheory.integral_add' hconst_int.integrable hf_int.integrable)
+  calc
+    H.martingaleFromPartition G (fun x => c + f x) n x =
+        (∫ y in P, (c + f y) ∂G.μ) / (G.μ P).toReal :=
+      H.martingaleFromPartition_eq_average_on_node G (fun x => c + f x) hP hxP
+    _ = ((∫ y in P, c ∂G.μ) + ∫ y in P, f y ∂G.μ) / (G.μ P).toReal := by
+      rw [hadd]
+    _ = c + (∫ y in P, f y ∂G.μ) / (G.μ P).toReal := by
+      rw [MeasureTheory.setIntegral_const]
+      simp [MeasureTheory.measureReal_def]
+      field_simp [hμP_toReal_ne]
+    _ = c + H.martingaleFromPartition G f n x := by
+      rw [H.martingaleFromPartition_eq_average_on_node G f hP hxP]
+
 /-- On every set measurable with respect to the depth-`n` filtration, the partition averages at
 times `n` and `n + 1` have the same set integral. -/
 lemma HaarSystem.martingaleFromPartition_setIntegral_eq_succ
@@ -2144,7 +2187,196 @@ theorem HaarSystem.eLpNorm_finite_wavelet_sum_le_Burkholder
           MeasureTheory.eLpNorm (fun x => ∑ i ∈ s, a i * H.wavelet G i x) p G.μ := by
       rfl
 
-
+theorem HaarSystem.eLpNorm_finite_wavelet_sum_le_Burkholder_2
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G))
+    (p : ENNReal) (hp_one : 1 < p) (hfin : p ≠ ⊤)
+    (s : Finset H.Index) (a c : H.Index → ℝ) (a0 c0 : ℝ)
+    (hc : ∀ i, i ∈ s → |c i| ≤ 1) (hd : |c0| ≤ 1) :
+    MeasureTheory.eLpNorm (fun x => a0 * c0 + ∑ i ∈ s, c i * a i * H.wavelet G i x) p G.μ ≤
+      ENNReal.ofReal (Burkholder.pStar p.toReal - 1) *
+        MeasureTheory.eLpNorm (fun x => a0 + ∑ i ∈ s, a i * H.wavelet G i x) p G.μ := by
+  letI : MeasureTheory.IsFiniteMeasure G.μ := G.isFinite
+  classical
+  let N := s.sup (fun i => i.deepness G H)
+  let g : α → ℝ := fun x => ∑ i ∈ s, a i * H.wavelet G i x
+  let f : α → ℝ := fun x => a0 + g x
+  have hN : ∀ i, i ∈ s → i.deepness G H ≤ N := by
+    intro i hi
+    exact Finset.le_sup (s := s) (f := fun j : H.Index => j.deepness G H) hi
+  let containingNode (n : ℕ) (x : α) : {S : Set α // S ∈ H.nodesAtDeepness G n} := by
+    let hex : ∃ S, S ∈ H.nodesAtDeepness G n ∧ x ∈ S := by
+      have hcover := (H.nodesAtDeepness_is_partition G n).1
+      have hx : x ∈ ⋃ S ∈ H.nodesAtDeepness G n, S := hcover ▸ Set.mem_univ x
+      simpa [Set.mem_iUnion, exists_prop] using hx
+    exact ⟨Classical.choose hex, (Classical.choose_spec hex).1⟩
+  have hcontaining_mem : ∀ n x, x ∈ (containingNode n x).1 := by
+    intro n x
+    dsimp [containingNode]
+    exact (Classical.choose_spec
+      (show ∃ S, S ∈ H.nodesAtDeepness G n ∧ x ∈ S by
+        have hcover := (H.nodesAtDeepness_is_partition G n).1
+        have hx : x ∈ ⋃ S ∈ H.nodesAtDeepness G n, S := hcover ▸ Set.mem_univ x
+        simpa [Set.mem_iUnion, exists_prop] using hx)).2
+  have hcontaining_eq_of_mem :
+      ∀ n {x : α} (S : {S : Set α // S ∈ H.nodesAtDeepness G n}),
+        x ∈ S.1 → containingNode n x = S := by
+    intro n x S hxS
+    have hxT : x ∈ (containingNode n x).1 := hcontaining_mem n x
+    rcases H.nodesAtDeepness_eq_or_disjoint G n (containingNode n x).1 S.1
+        (containingNode n x).2 S.2 with hEq | hDisj
+    · exact Subtype.ext hEq
+    · exact (Set.disjoint_left.mp hDisj hxT hxS).elim
+  let w : ℕ → α → ℝ
+    | 0, _ => c0
+    | n + 1, x =>
+        let P := containingNode n x
+        let j := H.indexOfNode G n P.1 P.2
+        if hj : j ∈ s then c j else 0
+  have hwv : ∀ i, i ∈ s → ∀ x, x ∈ i.branchSupport G H →
+      w (i.deepness G H + 1) x = c i := by
+    intro i hi x hx
+    have hibranch_mem : i.branchSupport G H ∈ H.nodesAtDeepness G (i.deepness G H) := by
+      simpa using H.branchSupport_mem_nodesAtDeepness G i
+    have hP_eq : containingNode (i.deepness G H) x = ⟨i.branchSupport G H, hibranch_mem⟩ :=
+      hcontaining_eq_of_mem (i.deepness G H) ⟨i.branchSupport G H, hibranch_mem⟩ hx
+    let j := H.indexOfNode G (i.deepness G H) (i.branchSupport G H) hibranch_mem
+    have hj_eq : j = i := by
+      by_contra hij
+      exact H.ne_of_branchSupport_eq_false G hij
+        ((H.indexOfNode_branchSupport G
+            (i.deepness G H) (i.branchSupport G H) hibranch_mem).trans rfl)
+    simp [w, hP_eq, hi, j, hj_eq]
+  have hw0 : ∀ S, S ∈ H.nodesAtDeepness G 0 →
+      ∃ d : ℝ, Set.EqOn (w 0) (fun _ => d) S := by
+    intro S hS
+    refine ⟨c0, ?_⟩
+    intro x hx
+    simp [w]
+  have hwpred : ∀ n S, S ∈ H.nodesAtDeepness G n →
+      ∃ d : ℝ, Set.EqOn (w (n + 1)) (fun _ => d) S := by
+    intro n S hS
+    let j := H.indexOfNode G n S hS
+    refine ⟨if hj : j ∈ s then c j else 0, ?_⟩
+    intro x hx
+    have hP_eq : containingNode n x = ⟨S, hS⟩ := hcontaining_eq_of_mem n ⟨S, hS⟩ hx
+    simp [w, hP_eq, j]
+  have hstrong : MeasureTheory.IsStronglyPredictable (H.mathlibFiltration G) w := by
+    rcases HaarSystem.exists_filtration_martingale_average G H with ⟨_, _, hpredictable⟩
+    exact hpredictable w hw0 hwpred
+  have hmart : MeasureTheory.Martingale (H.martingaleFromPartition G f)
+      (H.mathlibFiltration G) G.μ := by
+    refine H.martingaleFromPartition_martingale G f ?_
+    simpa [f, g] using (MeasureTheory.integrable_const a0).add (H.integrable_finite_wavelet_sum G s a)
+  have hLp : ∀ n, MeasureTheory.MemLp (H.martingaleFromPartition G f n) p G.μ := by
+    intro n
+    exact H.martingaleFromPartition_memLp G f p n
+  have hbound : ∀ n, ∀ᵐ x ∂G.μ, |w n x| ≤ 1 := by
+    intro n
+    cases n with
+    | zero =>
+        exact Filter.Eventually.of_forall (fun x => by simpa [w] using hd)
+    | succ n =>
+        exact Filter.Eventually.of_forall (fun x => by
+          let P := containingNode n x
+          let j := H.indexOfNode G n P.1 P.2
+          by_cases hj : j ∈ s
+          · simpa [w, P, j, hj] using hc j hj
+          · simp [w, P, j, hj])
+  have hzero_g : H.martingaleFromPartition G g 0 = fun _ => 0 := by
+    simpa [g, H.martingaleDiff_martingaleFromPartition_zero] using
+      (H.martingaleDiff_martingaleFromPartition_finite_wavelet_sum_eq_by_level G s a 0) 0 (by simp)
+  have hMf0 : H.martingaleFromPartition G f 0 = fun _ => a0 := by
+    rw [H.martingaleFromPartition_add_const G g (H.integrable_finite_wavelet_sum G s a) a0 0]
+    ext x
+    simp [g, hzero_g]
+  have hsucc_diff : ∀ n,
+      MeasureTheory.martingaleDiff (H.martingaleFromPartition G f) (n + 1) =
+        MeasureTheory.martingaleDiff (H.martingaleFromPartition G g) (n + 1) := by
+    intro n
+    funext x
+    rw [MeasureTheory.martingaleDiff, MeasureTheory.martingaleDiff]
+    rw [H.martingaleFromPartition_add_const G g (H.integrable_finite_wavelet_sum G s a) a0 (n + 1)]
+    rw [H.martingaleFromPartition_add_const G g (H.integrable_finite_wavelet_sum G s a) a0 n]
+    change (a0 + H.martingaleFromPartition G g (n + 1) x) - (a0 + H.martingaleFromPartition G g n x) =
+      H.martingaleFromPartition G g (n + 1) x - H.martingaleFromPartition G g n x
+    ring
+  have htransform_g :
+      MeasureTheory.martingaleTransform w (H.martingaleFromPartition G g) (N + 1) =
+        fun x => ∑ i ∈ s, c i * a i * H.wavelet G i x := by
+    exact H.finite_wavelet_sum_eq_martingaleTransform G s a c g rfl w N hN hwv
+  have htransform :
+      MeasureTheory.martingaleTransform w (H.martingaleFromPartition G f) (N + 1) =
+        fun x => a0 * c0 + ∑ i ∈ s, c i * a i * H.wavelet G i x := by
+    funext x
+    have hzero_diff_x :
+        MeasureTheory.martingaleDiff (H.martingaleFromPartition G g) 0 x = 0 := by
+      simp [H.martingaleDiff_martingaleFromPartition_zero, hzero_g]
+    have hzero_diff_f :
+        MeasureTheory.martingaleDiff (H.martingaleFromPartition G f) 0 x = a0 := by
+      simp [H.martingaleDiff_martingaleFromPartition_zero, hMf0]
+    have htail :
+        ∑ k ∈ Finset.range (N + 1),
+          w (k + 1) * MeasureTheory.martingaleDiff (H.martingaleFromPartition G f) (k + 1) =
+        ∑ k ∈ Finset.range (N + 1),
+          w (k + 1) * MeasureTheory.martingaleDiff (H.martingaleFromPartition G g) (k + 1) := by
+      refine Finset.sum_congr rfl ?_
+      intro n hn
+      simp [hsucc_diff n]
+    have htransform_g_tail :
+        MeasureTheory.martingaleTransform w (H.martingaleFromPartition G g) (N + 1) x =
+          (∑ k ∈ Finset.range (N + 1),
+            w (k + 1) * MeasureTheory.martingaleDiff (H.martingaleFromPartition G g) (k + 1)) x := by
+      rw [MeasureTheory.martingaleTransform, Finset.sum_range_succ']
+      change
+        ((∑ k ∈ Finset.range (N + 1),
+            w (k + 1) * MeasureTheory.martingaleDiff (H.martingaleFromPartition G g) (k + 1)) +
+          w 0 * MeasureTheory.martingaleDiff (H.martingaleFromPartition G g) 0) x = _
+      simp [w, hzero_diff_x]
+    calc
+      MeasureTheory.martingaleTransform w (H.martingaleFromPartition G f) (N + 1) x =
+          (∑ k ∈ Finset.range (N + 1),
+            w (k + 1) * MeasureTheory.martingaleDiff (H.martingaleFromPartition G f) (k + 1)) x +
+              c0 * a0 := by
+        rw [MeasureTheory.martingaleTransform, Finset.sum_range_succ']
+        change
+          ((∑ k ∈ Finset.range (N + 1),
+              w (k + 1) * MeasureTheory.martingaleDiff (H.martingaleFromPartition G f) (k + 1)) +
+            w 0 * MeasureTheory.martingaleDiff (H.martingaleFromPartition G f) 0) x = _
+        simp [w, hzero_diff_f, mul_comm]
+      _ =
+          (∑ k ∈ Finset.range (N + 1),
+            w (k + 1) * MeasureTheory.martingaleDiff (H.martingaleFromPartition G g) (k + 1)) x +
+              c0 * a0 := by
+        rw [congrFun htail x]
+      _ = a0 * c0 + MeasureTheory.martingaleTransform w (H.martingaleFromPartition G g) (N + 1) x := by
+        rw [htransform_g_tail]
+        ring
+      _ = a0 * c0 + ∑ i ∈ s, c i * a i * H.wavelet G i x := by
+        rw [congrFun htransform_g x]
+  have hself_g : H.martingaleFromPartition G g (N + 1) = g := by
+    refine H.martingaleFromPartition_eq_self_of_finite_wavelet_sum_const_on_nodes G s a (N + 1) ?_
+    intro i hi P hP
+    exact H.wavelet_eqOn_nodesAtDeepness_of_deepness_succ_le G i
+      (Nat.succ_le_succ (hN i hi)) P hP
+  have hself : H.martingaleFromPartition G f (N + 1) = f := by
+    rw [H.martingaleFromPartition_add_const G g (H.integrable_finite_wavelet_sum G s a) a0 (N + 1)]
+    rw [hself_g]
+  calc
+    MeasureTheory.eLpNorm (fun x => a0 * c0 + ∑ i ∈ s, c i * a i * H.wavelet G i x) p G.μ =
+        MeasureTheory.eLpNorm
+          (MeasureTheory.martingaleTransform w (H.martingaleFromPartition G f) (N + 1)) p G.μ := by
+      rw [htransform]
+    _ ≤ ENNReal.ofReal (Burkholder.pStar p.toReal - 1) *
+          MeasureTheory.eLpNorm (H.martingaleFromPartition G f (N + 1)) p G.μ := by
+      exact (MeasureTheory.Lp_Burkholder_inequality_martingaleTransform
+        p α G.μ (H.mathlibFiltration G) w (H.martingaleFromPartition G f)
+        hp_one hfin hstrong hmart hLp hbound) (N + 1)
+    _ = ENNReal.ofReal (Burkholder.pStar p.toReal - 1) * MeasureTheory.eLpNorm f p G.μ := by
+      rw [hself]
+    _ = ENNReal.ofReal (Burkholder.pStar p.toReal - 1) *
+          MeasureTheory.eLpNorm (fun x => a0 + ∑ i ∈ s, a i * H.wavelet G i x) p G.μ := by
+      dsimp [f]
 
 
 
