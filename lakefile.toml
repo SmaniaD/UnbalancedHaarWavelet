@@ -20,5 +20,9 @@ name = "LaminarFamiliesMaximalBinaryTrees"
 git = "https://github.com/SmaniaD/LaminarFamiliesMaximalBinaryTrees.git"
 rev = "main"
 
+[[require]]
+name = "Burkholder"
+path = "../Burkholder"
+
 [[lean_lib]]
 name = "UnbalancedHaarWavelet"
