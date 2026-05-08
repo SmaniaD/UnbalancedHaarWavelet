@@ -3,6 +3,7 @@ import LaminarFamiliesMaximalBinaryTrees
 import Mathlib.MeasureTheory.Measure.MeasureSpace
 import Mathlib.MeasureTheory.Function.L2Space
 import Mathlib.Analysis.InnerProductSpace.l2Space
+import Mathlib.Analysis.Normed.Group.Indicator
 import Mathlib.MeasureTheory.Function.AEEqOfIntegral
 import UnbalancedHaarWavelet.GridDefinition
 import UnbalancedHaarWavelet.HaarWaveletsDefinition
@@ -16,6 +17,110 @@ import UnbalancedHaarWavelet.HaarWaveletsDefinition
 namespace UnbalancedHaarWavelet
 
 variable {α : Type*} [MeasurableSpace α]
+
+/-- A Haar wavelet is integrable when its two supports are measurable and the measure is finite. -/
+lemma integrable_haarWavelet
+    (μ : MeasureTheory.Measure α) [MeasureTheory.IsFiniteMeasure μ]
+    (A B : Set α) (hA_meas : MeasurableSet A) (hB_meas : MeasurableSet B) :
+    MeasureTheory.Integrable (haarWavelet μ A B) μ := by
+  have hIntA :
+      MeasureTheory.Integrable
+        (fun x => Set.indicator A (fun _ => 1 / (μ A).toReal) x) μ :=
+    (MeasureTheory.integrable_const (1 / (μ A).toReal)).indicator hA_meas
+  have hIntB :
+      MeasureTheory.Integrable
+        (fun x => Set.indicator B (fun _ => 1 / (μ B).toReal) x) μ :=
+    (MeasureTheory.integrable_const (1 / (μ B).toReal)).indicator hB_meas
+  change MeasureTheory.Integrable
+    (fun x =>
+      Set.indicator A (fun _ => 1 / (μ A).toReal) x -
+        Set.indicator B (fun _ => 1 / (μ B).toReal) x) μ
+  exact hIntA.sub hIntB
+
+/-- Uniform pointwise bound for a Haar wavelet. -/
+lemma norm_haarWavelet_le
+    (μ : MeasureTheory.Measure α) (A B : Set α) (x : α) :
+    ‖haarWavelet μ A B x‖ ≤
+      ‖(1 / (μ A).toReal : ℝ)‖ + ‖(1 / (μ B).toReal : ℝ)‖ := by
+  calc
+    ‖haarWavelet μ A B x‖ =
+        ‖Set.indicator A (fun _ => 1 / (μ A).toReal) x -
+          Set.indicator B (fun _ => 1 / (μ B).toReal) x‖ := by
+          rfl
+    _ ≤ ‖Set.indicator A (fun _ => 1 / (μ A).toReal) x‖ +
+        ‖Set.indicator B (fun _ => 1 / (μ B).toReal) x‖ :=
+          norm_sub_le _ _
+    _ ≤ ‖(1 / (μ A).toReal : ℝ)‖ + ‖(1 / (μ B).toReal : ℝ)‖ := by
+          exact add_le_add
+            (norm_indicator_le_norm_self (s := A) (fun _ : α => (1 / (μ A).toReal : ℝ)) x)
+            (norm_indicator_le_norm_self (s := B) (fun _ : α => (1 / (μ B).toReal : ℝ)) x)
+
+/-- The product of two Haar wavelets is integrable when all four supports are measurable. -/
+lemma integrable_haarWavelet_mul_haarWavelet
+    (μ : MeasureTheory.Measure α) [MeasureTheory.IsFiniteMeasure μ]
+    (A B C D : Set α)
+    (hA_meas : MeasurableSet A) (hB_meas : MeasurableSet B)
+    (hC_meas : MeasurableSet C) (hD_meas : MeasurableSet D) :
+    MeasureTheory.Integrable
+      (fun x => haarWavelet μ A B x * haarWavelet μ C D x) μ := by
+  have hAB_int := integrable_haarWavelet μ A B hA_meas hB_meas
+  have hCD_int := integrable_haarWavelet μ C D hC_meas hD_meas
+  exact hAB_int.mul_bdd
+    hCD_int.aestronglyMeasurable
+    (Filter.Eventually.of_forall (norm_haarWavelet_le μ C D))
+
+/-- The square integral of one Haar wavelet. -/
+theorem integral_haarWavelet_mul_self_eq
+    (μ : MeasureTheory.Measure α) [MeasureTheory.IsFiniteMeasure μ]
+    (A B : Set α)
+    (hAB : Disjoint A B)
+    (hA_meas : MeasurableSet A)
+    (hB_meas : MeasurableSet B)
+    (hA_pos : 0 < μ A)
+    (hB_pos : 0 < μ B) :
+    ∫ x, haarWavelet μ A B x * haarWavelet μ A B x ∂μ =
+      1 / (μ A).toReal + 1 / (μ B).toReal := by
+  let μA : ℝ := (μ A).toReal
+  let μB : ℝ := (μ B).toReal
+  have hμA_ne : μA ≠ 0 := by
+    dsimp [μA]
+    exact ne_of_gt
+      (ENNReal.toReal_pos (ne_of_gt hA_pos) (MeasureTheory.measure_lt_top (μ := μ) A).ne)
+  have hμB_ne : μB ≠ 0 := by
+    dsimp [μB]
+    exact ne_of_gt
+      (ENNReal.toReal_pos (ne_of_gt hB_pos) (MeasureTheory.measure_lt_top (μ := μ) B).ne)
+  have hIntA :
+      MeasureTheory.Integrable
+        (fun y => Set.indicator A (fun _ => (1 / μA) * (1 / μA)) y) μ :=
+    (MeasureTheory.integrable_const ((1 / μA) * (1 / μA))).indicator hA_meas
+  have hIntB :
+      MeasureTheory.Integrable
+        (fun y => Set.indicator B (fun _ => (1 / μB) * (1 / μB)) y) μ :=
+    (MeasureTheory.integrable_const ((1 / μB) * (1 / μB))).indicator hB_meas
+  have hfun :
+      (fun y => haarWavelet μ A B y * haarWavelet μ A B y) =
+        fun y => Set.indicator A (fun _ => (1 / μA) * (1 / μA)) y +
+          Set.indicator B (fun _ => (1 / μB) * (1 / μB)) y := by
+    funext y
+    by_cases hyA : y ∈ A
+    · have hyB : y ∉ B := by
+        intro hyB
+        exact (Set.disjoint_left.mp hAB hyA hyB).elim
+      simp [haarWavelet, μA, μB, hyA, hyB]
+    · by_cases hyB : y ∈ B
+      · simp [haarWavelet, μA, μB, hyA, hyB]
+      · simp [haarWavelet, μA, μB, hyA, hyB]
+  rw [hfun, MeasureTheory.integral_add hIntA hIntB]
+  rw [MeasureTheory.integral_indicator hA_meas, MeasureTheory.integral_indicator hB_meas]
+  rw [MeasureTheory.setIntegral_const, MeasureTheory.setIntegral_const]
+  rw [MeasureTheory.measureReal_def, MeasureTheory.measureReal_def]
+  change (μ A).toReal * ((1 / μA) * (1 / μA)) +
+      (μ B).toReal * ((1 / μB) * (1 / μB)) =
+    1 / (μ A).toReal + 1 / (μ B).toReal
+  rw [show (μ A).toReal = μA by rfl, show (μ B).toReal = μB by rfl]
+  simp [div_eq_mul_inv]
+  field_simp [hμA_ne, hμB_ne]
 
 /-- Orthogonality of two Haar wavelets when the four supports are pairwise disjoint
 across the two wavelets. -/
@@ -785,6 +890,106 @@ theorem HaarSystem.integral_wavelet_eq_zero
   exact integral_haarWavelet_eq_zero_of_pos
     G.μ (branchSupport p.1.1) (branchSupport p.1.2)
     hAB hA_meas hB_meas hA_pos hB_pos
+
+/-- Every globally indexed Haar wavelet is integrable. -/
+theorem HaarSystem.integrable_wavelet
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G))
+    (i : H.Index) :
+    MeasureTheory.Integrable (H.wavelet G i) G.μ := by
+  letI : MeasureTheory.IsFiniteMeasure G.μ := G.isFinite
+  rcases i with ⟨n, Q, hQ, p⟩
+  dsimp [HaarSystem.wavelet]
+  let T := H.binaryRefinement.tree n Q hQ
+  have hp_childs : p.1.1 ⊆ T.Childs ∧ p.1.2 ⊆ T.Childs :=
+    T.TreeStructureChilds p.1 p.2
+  have hp1_part : ∀ s, s ∈ p.1.1 → s ∈ G.grid.partitions (n + 1) := by
+    intro s hs
+    exact (H.binaryRefinement.childs_are_children n Q hQ s).1 (hp_childs.1 hs) |>.1
+  have hp2_part : ∀ s, s ∈ p.1.2 → s ∈ G.grid.partitions (n + 1) := by
+    intro s hs
+    exact (H.binaryRefinement.childs_are_children n Q hQ s).1 (hp_childs.2 hs) |>.1
+  have hA_meas : MeasurableSet (branchSupport p.1.1) :=
+    measurableSet_branchSupport_of_partition G n p.1.1 hp1_part
+  have hB_meas : MeasurableSet (branchSupport p.1.2) :=
+    measurableSet_branchSupport_of_partition G n p.1.2 hp2_part
+  rw [H.haarWavelets_def]
+  exact integrable_haarWavelet G.μ (branchSupport p.1.1) (branchSupport p.1.2)
+    hA_meas hB_meas
+
+/-- The product of two globally indexed Haar wavelets is integrable. -/
+theorem HaarSystem.integrable_wavelet_mul_wavelet
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G))
+    (i j : H.Index) :
+    MeasureTheory.Integrable (fun x => H.wavelet G i x * H.wavelet G j x) G.μ := by
+  rcases j with ⟨n, Q, hQ, p⟩
+  exact (H.integrable_wavelet G i).mul_bdd
+    (c := ‖(1 / (G.μ (branchSupport p.1.1)).toReal : ℝ)‖ +
+      ‖(1 / (G.μ (branchSupport p.1.2)).toReal : ℝ)‖)
+    (H.integrable_wavelet G { level := n, cell := Q, hcell := hQ, branch := p }).aestronglyMeasurable
+    (by
+      dsimp [HaarSystem.wavelet]
+      exact Filter.Eventually.of_forall
+        (by
+          intro x
+          simpa [H.haarWavelets_def] using
+            norm_haarWavelet_le G.μ (branchSupport p.1.1) (branchSupport p.1.2) x))
+
+/-- The square integral of a globally indexed Haar wavelet is positive. -/
+theorem HaarSystem.integral_wavelet_mul_self_pos
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G))
+    (i : H.Index) :
+    0 < ∫ x, H.wavelet G i x * H.wavelet G i x ∂G.μ := by
+  letI : MeasureTheory.IsFiniteMeasure G.μ := G.isFinite
+  rcases i with ⟨n, Q, hQ, p⟩
+  dsimp [HaarSystem.wavelet]
+  let T := H.binaryRefinement.tree n Q hQ
+  have hp_childs : p.1.1 ⊆ T.Childs ∧ p.1.2 ⊆ T.Childs :=
+    T.TreeStructureChilds p.1 p.2
+  have hp1_part : ∀ s, s ∈ p.1.1 → s ∈ G.grid.partitions (n + 1) := by
+    intro s hs
+    exact (H.binaryRefinement.childs_are_children n Q hQ s).1 (hp_childs.1 hs) |>.1
+  have hp2_part : ∀ s, s ∈ p.1.2 → s ∈ G.grid.partitions (n + 1) := by
+    intro s hs
+    exact (H.binaryRefinement.childs_are_children n Q hQ s).1 (hp_childs.2 hs) |>.1
+  have hp_nonempty : p.1.1.Nonempty ∧ p.1.2.Nonempty := T.NonemptyPairs p.1 p.2
+  have hAB_cells : Disjoint p.1.1 p.1.2 := T.DisjointComponents p.1 p.2
+  have hp1_pos_cells : ∀ s, s ∈ p.1.1 → 0 < G.μ s := by
+    intro s hs
+    exact G.positive_measure (n + 1) s (hp1_part s hs)
+  have hp2_pos_cells : ∀ s, s ∈ p.1.2 → 0 < G.μ s := by
+    intro s hs
+    exact G.positive_measure (n + 1) s (hp2_part s hs)
+  have hAB : Disjoint (branchSupport p.1.1) (branchSupport p.1.2) :=
+    disjoint_branchSupport_of_finset_disjoint G n p.1.1 p.1.2 hp1_part hp2_part hAB_cells
+  have hA_meas : MeasurableSet (branchSupport p.1.1) :=
+    measurableSet_branchSupport_of_partition G n p.1.1 hp1_part
+  have hB_meas : MeasurableSet (branchSupport p.1.2) :=
+    measurableSet_branchSupport_of_partition G n p.1.2 hp2_part
+  have hA_pos : 0 < G.μ (branchSupport p.1.1) :=
+    measure_branchSupport_pos_of_nonempty G p.1.1 hp1_pos_cells hp_nonempty.1
+  have hB_pos : 0 < G.μ (branchSupport p.1.2) :=
+    measure_branchSupport_pos_of_nonempty G p.1.2 hp2_pos_cells hp_nonempty.2
+  have hA_toReal_pos : 0 < (G.μ (branchSupport p.1.1)).toReal :=
+    ENNReal.toReal_pos (ne_of_gt hA_pos)
+      (MeasureTheory.measure_lt_top (μ := G.μ) (branchSupport p.1.1)).ne
+  have hB_toReal_pos : 0 < (G.μ (branchSupport p.1.2)).toReal :=
+    ENNReal.toReal_pos (ne_of_gt hB_pos)
+      (MeasureTheory.measure_lt_top (μ := G.μ) (branchSupport p.1.2)).ne
+  rw [H.haarWavelets_def,
+    integral_haarWavelet_mul_self_eq G.μ (branchSupport p.1.1) (branchSupport p.1.2)
+      hAB hA_meas hB_meas hA_pos hB_pos]
+  positivity
+
+/-- The square integral of a globally indexed Haar wavelet is nonzero. -/
+theorem HaarSystem.integral_wavelet_mul_self_ne_zero
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G))
+    (i : H.Index) :
+    (∫ x, H.wavelet G i x * H.wavelet G i x ∂G.μ) ≠ 0 :=
+  ne_of_gt (H.integral_wavelet_mul_self_pos G i)
 
 
 

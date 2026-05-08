@@ -1434,13 +1434,12 @@ theorem HaarSystem.projectionCoeff_finite_wavelet_sum_eq
     (G : Grid (α := α)) [DecidableEq (Set α)]
     (H : HaarSystem (G := G))
     (s : Finset H.Index) (a : H.Index → ℝ) (j : H.Index)
-    (hj : j ∈ s)
-    (hInt : ∀ i, i ∈ s →
-      MeasureTheory.Integrable (fun x => (a i * H.wavelet G i x) * H.wavelet G j x) G.μ)
-    (hden_ne : (∫ x, H.wavelet G j x * H.wavelet G j x ∂G.μ) ≠ 0) :
+    (hj : j ∈ s) :
     H.projectionCoeff G (fun x => ∑ i ∈ s, a i * H.wavelet G i x) j = a j := by
   classical
   let D : ℝ := ∫ x, H.wavelet G j x * H.wavelet G j x ∂G.μ
+  have hden_ne : D ≠ 0 := by
+    simpa [D] using HaarSystem.integral_wavelet_mul_self_ne_zero G H j
   have hnum :
       (∫ x, (∑ i ∈ s, a i * H.wavelet G i x) * H.wavelet G j x ∂G.μ) =
         a j * D := by
@@ -1454,7 +1453,9 @@ theorem HaarSystem.projectionCoeff_finite_wavelet_sum_eq
       _ =
         ∑ i ∈ s, ∫ x, (a i * H.wavelet G i x) * H.wavelet G j x ∂G.μ := by
           rw [MeasureTheory.integral_finsetSum]
-          exact hInt
+          intro i hi
+          simpa [mul_assoc] using
+            (HaarSystem.integrable_wavelet_mul_wavelet G H i j).const_mul (a i)
       _ =
         ∑ i ∈ s, a i * ∫ x, H.wavelet G i x * H.wavelet G j x ∂G.μ := by
           refine Finset.sum_congr rfl ?_
@@ -1485,14 +1486,7 @@ theorem HaarSystem.martingaleDiff_martingaleFromPartition_finite_wavelet_sum_on_
       (fun x => ∑ i ∈ s, a i * H.wavelet G i x) G.μ)
     {n : ℕ} {P : Set α} (hP : P ∈ H.nodesAtDeepness G n)
     {x : α} (hx : x ∈ P)
-    (hj : H.indexOfNode G n P hP ∈ s)
-    (hInt : ∀ i, i ∈ s →
-      MeasureTheory.Integrable
-        (fun x => (a i * H.wavelet G i x) *
-          H.wavelet G (H.indexOfNode G n P hP) x) G.μ)
-    (hden_ne :
-      (∫ x, H.wavelet G (H.indexOfNode G n P hP) x *
-        H.wavelet G (H.indexOfNode G n P hP) x ∂G.μ) ≠ 0) :
+    (hj : H.indexOfNode G n P hP ∈ s) :
     MeasureTheory.martingaleDiff
         (H.martingaleFromPartition G
           (fun x => ∑ i ∈ s, a i * H.wavelet G i x)) (n + 1) x =
@@ -1510,8 +1504,7 @@ theorem HaarSystem.martingaleDiff_martingaleFromPartition_finite_wavelet_sum_on_
             H.martingaleDiff_martingaleFromPartition_succ_eq_projectionCoeff_mul_wavelet
               G (fun x => ∑ i ∈ s, a i * H.wavelet G i x) hf hP hx
     _ = a j * H.wavelet G j x := by
-          rw [H.projectionCoeff_finite_wavelet_sum_eq G s a j (by simpa [j] using hj)
-            (by simpa [j] using hInt) (by simpa [j] using hden_ne)]
+          rw [H.projectionCoeff_finite_wavelet_sum_eq G s a j (by simpa [j] using hj)]
     _ = a (H.indexOfNode G n P hP) *
         H.wavelet G (H.indexOfNode G n P hP) x := by
           rfl
