@@ -598,6 +598,79 @@ lemma HaarSystem.martingaleFromPartition_integrable
   exact MeasureTheory.Integrable.of_bound hmeas.aestronglyMeasurable C
     (Filter.Eventually.of_forall hbound)
 
+/-- Each level of the partition-average process belongs to `L^p` because it takes only finitely
+many values on a finite-measure space. -/
+lemma HaarSystem.martingaleFromPartition_memLp
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G))
+  (f : α → ℝ) (p : ENNReal) (n : ℕ) :
+    MeasureTheory.MemLp (H.martingaleFromPartition G f n) p G.μ := by
+  letI : MeasureTheory.IsFiniteMeasure G.μ := G.isFinite
+  classical
+  let nodeType := {S : Set α // S ∈ H.nodesAtDeepness G n}
+  have hfinite_nodes : (H.nodesAtDeepness G n).Finite := H.nodesAtDeepness_finite G n
+  letI : Finite nodeType := hfinite_nodes.to_subtype
+  letI : MeasurableSpace nodeType := ⊤
+  let nodeSelector : α → nodeType := fun x =>
+    let hex : ∃ S, S ∈ H.nodesAtDeepness G n ∧ x ∈ S := by
+      have hcover := (H.nodesAtDeepness_is_partition G n).1
+      have hx : x ∈ ⋃ S ∈ H.nodesAtDeepness G n, S := hcover ▸ Set.mem_univ x
+      simpa [Set.mem_iUnion, exists_prop] using hx
+    ⟨Classical.choose hex, (Classical.choose_spec hex).1⟩
+  have hnodeSelector_mem : ∀ x, x ∈ (nodeSelector x).1 := by
+    intro x
+    dsimp [nodeSelector]
+    exact (Classical.choose_spec
+      (show ∃ S, S ∈ H.nodesAtDeepness G n ∧ x ∈ S by
+        have hcover := (H.nodesAtDeepness_is_partition G n).1
+        have hx : x ∈ ⋃ S ∈ H.nodesAtDeepness G n, S := hcover ▸ Set.mem_univ x
+        simpa [Set.mem_iUnion, exists_prop] using hx)).2
+  have hnodeSelector_eq_of_mem :
+      ∀ {x : α}, (S : nodeType) → x ∈ S.1 → nodeSelector x = S := by
+    intro x S hxS
+    have hxT : x ∈ (nodeSelector x).1 := hnodeSelector_mem x
+    rcases H.nodesAtDeepness_eq_or_disjoint G n (nodeSelector x).1 S.1
+        (nodeSelector x).2 S.2 with hEq | hDisj
+    · exact Subtype.ext hEq
+    · exact (Set.disjoint_left.mp hDisj hxT hxS).elim
+  have hpreimage : ∀ S : nodeType, nodeSelector ⁻¹' {S} = S.1 := by
+    intro S
+    ext x
+    constructor
+    · intro hx
+      have hEq : nodeSelector x = S := by simpa using hx
+      simpa [hEq] using hnodeSelector_mem x
+    · intro hx
+      change nodeSelector x ∈ ({S} : Set nodeType)
+      simp [hnodeSelector_eq_of_mem S hx]
+  have hselector_fiber : ∀ S : nodeType, MeasurableSet (nodeSelector ⁻¹' {S}) := by
+    intro S
+    rw [hpreimage S]
+    exact H.measurableSet_of_mem_nodesAtDeepness G S.2
+  have hselector_meas : Measurable nodeSelector :=
+    measurable_to_countable' hselector_fiber
+  let avgOnNode : nodeType → ℝ := fun S =>
+    (∫ y in S.1, f y ∂G.μ) / (G.μ S.1).toReal
+  have havg_meas : Measurable avgOnNode := Measurable.of_discrete
+  have hmeas : Measurable (fun x => avgOnNode (nodeSelector x)) :=
+    havg_meas.comp hselector_meas
+  have hrepr : (fun x => avgOnNode (nodeSelector x)) = H.martingaleFromPartition G f n := by
+    funext x
+    exact (H.martingaleFromPartition_eq_average_on_node G f (nodeSelector x).2
+      (hnodeSelector_mem x)).symm
+  let C := max (Classical.choose (Finite.bddAbove_range fun S : nodeType => |avgOnNode S|)) 0
+  have hC : ∀ S : nodeType, |avgOnNode S| ≤ C := by
+    intro S
+    refine le_trans ?_ (le_max_left _ _)
+    exact Classical.choose_spec (Finite.bddAbove_range fun T : nodeType => |avgOnNode T|)
+      ⟨S, rfl⟩
+  have hbound : ∀ x, ‖avgOnNode (nodeSelector x)‖ ≤ C := by
+    intro x
+    simpa using hC (nodeSelector x)
+  rw [← hrepr]
+  exact MeasureTheory.MemLp.of_bound hmeas.aestronglyMeasurable C
+    (Filter.Eventually.of_forall hbound)
+
 /-- On every set measurable with respect to the depth-`n` filtration, the partition averages at
 times `n` and `n + 1` have the same set integral. -/
 lemma HaarSystem.martingaleFromPartition_setIntegral_eq_succ
@@ -829,13 +902,22 @@ theorem HaarSystem.martingaleFromPartition_increment_eq_projectionCoeff_mul_wave
   letI : MeasureTheory.IsFiniteMeasure G.μ := G.isFinite
   have hμA_ne : μA ≠ 0 := by
     dsimp [μA]
-    exact ne_of_gt (ENNReal.toReal_pos (ne_of_gt hμA_pos) (MeasureTheory.measure_lt_top (μ := G.μ) A).ne)
+    exact ne_of_gt
+      (ENNReal.toReal_pos
+        (ne_of_gt hμA_pos)
+        (MeasureTheory.measure_lt_top (μ := G.μ) A).ne)
   have hμB_ne : μB ≠ 0 := by
     dsimp [μB]
-    exact ne_of_gt (ENNReal.toReal_pos (ne_of_gt hμB_pos) (MeasureTheory.measure_lt_top (μ := G.μ) B).ne)
+    exact ne_of_gt
+      (ENNReal.toReal_pos
+        (ne_of_gt hμB_pos)
+        (MeasureTheory.measure_lt_top (μ := G.μ) B).ne)
   have hμP_ne : μP ≠ 0 := by
     dsimp [μP]
-    exact ne_of_gt (ENNReal.toReal_pos (ne_of_gt hμP_pos) (MeasureTheory.measure_lt_top (μ := G.μ) P).ne)
+    exact ne_of_gt
+      (ENNReal.toReal_pos
+        (ne_of_gt hμP_pos)
+        (MeasureTheory.measure_lt_top (μ := G.μ) P).ne)
   have hμP_eq : μP = μA + μB := by
     dsimp [μP, μA, μB]
     calc
@@ -1254,14 +1336,130 @@ theorem HaarSystem.martingaleTransform_term_identity_of_diff_by_level
       H.wavelet_eq_zero_of_not_mem_branchSupport G i hx
     rw [hwx]
     ring
+/-- For the canonical partition martingale of `f`, the `(n+1)`-st martingale difference is,
+on each depth-`n` node `P`, a scalar multiple of the Haar wavelet attached to `P`.
+
+This is the local form of the statement that the level-`n+1` martingale difference lives in
+the Haar block of level `n`. A global linear-combination statement for an arbitrary martingale
+would require additional hypotheses not present in this file. -/
+lemma Martingale_Linear_Combination_Haar_1
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G))
+    (f : α → ℝ) (hf : MeasureTheory.Integrable f G.μ)
+    {n : ℕ} {P : Set α} (hP : P ∈ H.nodesAtDeepness G n)
+    {x : α} (hx : x ∈ P) :
+    MeasureTheory.martingaleDiff (H.martingaleFromPartition G f) (n + 1) x =
+      H.projectionCoeff G f (H.indexOfNode G n P hP) *
+        H.wavelet G (H.indexOfNode G n P hP) x := by
+  simpa [MeasureTheory.martingaleDiff] using
+    H.martingaleFromPartition_increment_eq_projectionCoeff_mul_wavelet G f hf hP hx
+
+/-- Global finite-sum form of the previous local statement: the `(n+1)`-st martingale
+difference of the partition martingale is a finite linear combination of the Haar wavelets
+whose branch supports are the depth-`n` nodes. -/
+theorem HaarSystem.martingaleDiff_martingaleFromPartition_succ_eq_sum_of_nodes
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G))
+    (f : α → ℝ) (hf : MeasureTheory.Integrable f G.μ)
+    (n : ℕ) :
+    MeasureTheory.martingaleDiff (H.martingaleFromPartition G f) (n + 1) =
+      fun x =>
+        let nodeType := {P : Set α // P ∈ H.nodesAtDeepness G n}
+        letI : Finite nodeType := (H.nodesAtDeepness_finite G n).to_subtype
+        ∑ P : nodeType,
+          H.projectionCoeff G f (H.indexOfNode G n P.1 P.2) *
+            H.wavelet G (H.indexOfNode G n P.1 P.2) x := by
+  classical
+  let nodeType := {P : Set α // P ∈ H.nodesAtDeepness G n}
+  have hfinite_nodes : (H.nodesAtDeepness G n).Finite := H.nodesAtDeepness_finite G n
+  letI : Finite nodeType := hfinite_nodes.to_subtype
+  funext x
+  let T : nodeType → ℝ := fun P =>
+    H.projectionCoeff G f (H.indexOfNode G n P.1 P.2) *
+      H.wavelet G (H.indexOfNode G n P.1 P.2) x
+  have hex : ∃ P, P ∈ H.nodesAtDeepness G n ∧ x ∈ P := by
+    have hcover := (H.nodesAtDeepness_is_partition G n).1
+    have hx : x ∈ ⋃ P ∈ H.nodesAtDeepness G n, P := hcover ▸ Set.mem_univ x
+    simpa [Set.mem_iUnion, exists_prop] using hx
+  let P0 : nodeType := ⟨Classical.choose hex, (Classical.choose_spec hex).1⟩
+  have hxP0 : x ∈ P0.1 := (Classical.choose_spec hex).2
+  have hsingle : ∑ P : nodeType, T P = T P0 := by
+    simpa [T] using
+      (Finset.sum_eq_single_of_mem
+        (s := Finset.univ)
+        (a := P0)
+        (f := T)
+        (by simp [P0])
+        (by
+          intro P hP hP_ne
+          have hdisj : Disjoint P.1 P0.1 := by
+            rcases H.nodesAtDeepness_eq_or_disjoint G n P.1 P0.1 P.2 P0.2 with hEq | hDisj
+            · exact (hP_ne (Subtype.ext hEq)).elim
+            · exact hDisj
+          have hx_not_mem : x ∉ P.1 := by
+            intro hxP
+            exact (Set.disjoint_left.mp hdisj hxP hxP0).elim
+          have hwave_zero :
+              H.wavelet G (H.indexOfNode G n P.1 P.2) x = 0 := by
+            have hbranch :
+                (H.indexOfNode G n P.1 P.2).branchSupport G H = P.1 :=
+              H.indexOfNode_branchSupport G n P.1 P.2
+            apply H.wavelet_eq_zero_of_not_mem_branchSupport G
+            simpa [hbranch] using hx_not_mem
+          simp [T, hwave_zero]))
+  calc
+    MeasureTheory.martingaleDiff (H.martingaleFromPartition G f) (n + 1) x = T P0 := by
+      simpa [T, P0] using Martingale_Linear_Combination_Haar_1 G H f hf P0.2 hxP0
+    _ = ∑ P : nodeType, T P := by rw [hsingle]
+
+/-- Specialization of `martingaleTransform_term_identity_of_diff_by_level` to the partition
+martingale of an integrable function: at level `n + 1`, the transformed martingale difference
+is the expected coefficient-weighted Haar block, with the Haar expansion supplied by the
+previous theorem. Since `MeasureTheory.martingaleDiff M (n + 1) = M (n + 1) - M n`, the
+predictable coefficient is taken at time `n`, not `n + 1`. -/
+theorem HaarSystem.martingaleTransform_term_identity_of_martingaleFromPartition_succ
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G))
+    (f : α → ℝ) (hf : MeasureTheory.Integrable f G.μ)
+    (v : ℕ → α → ℝ) (n : ℕ)
+    (c : {P : Set α // P ∈ H.nodesAtDeepness G n} → ℝ)
+    (hv : ∀ P : {P : Set α // P ∈ H.nodesAtDeepness G n},
+      ∀ x, x ∈ P.1 → v n x = c P) :
+    v n * MeasureTheory.martingaleDiff (H.martingaleFromPartition G f) (n + 1) =
+      fun x =>
+        let nodeType := {P : Set α // P ∈ H.nodesAtDeepness G n}
+        letI : Finite nodeType := (H.nodesAtDeepness_finite G n).to_subtype
+        ∑ P : nodeType,
+          H.projectionCoeff G f (H.indexOfNode G n P.1 P.2) *
+            c P * H.wavelet G (H.indexOfNode G n P.1 P.2) x := by
+  classical
+  let nodeType := {P : Set α // P ∈ H.nodesAtDeepness G n}
+  have hfinite_nodes : (H.nodesAtDeepness G n).Finite := H.nodesAtDeepness_finite G n
+  letI : Finite nodeType := hfinite_nodes.to_subtype
+  funext x
+  rw [H.martingaleDiff_martingaleFromPartition_succ_eq_sum_of_nodes G f hf n]
+  simp only [Pi.mul_apply]
+  rw [Finset.mul_sum]
+  refine Finset.sum_congr rfl ?_
+  intro P hP
+  by_cases hxP : x ∈ P.1
+  · have hvx : v n x = c P := hv P x hxP
+    rw [hvx]
+    ring
+  · have hx_branch : x ∉ (H.indexOfNode G n P.1 P.2).branchSupport G H := by
+      simpa [H.indexOfNode_branchSupport G n P.1 P.2] using hxP
+    have hwave_zero : H.wavelet G (H.indexOfNode G n P.1 P.2) x = 0 :=
+      H.wavelet_eq_zero_of_not_mem_branchSupport G (H.indexOfNode G n P.1 P.2) hx_branch
+    rw [hwave_zero]
+    ring
 
 /-- A finite Haar-wavelet sum written as a Burkholder martingale transform.
 
 The hypothesis `hterm` is exactly the martingale-transform difference identity at each level:
 the transformed difference `v k * martingaleDiff M k` is the sum of the Haar terms whose
-support deepness contributes at time `k`.  The conclusion rewrites the terminal transform
+support deepness contributes at time `k`. The conclusion rewrites the terminal transform
 `MeasureTheory.martingaleTransform v M N` as the finite Haar-wavelet sum. -/
-theorem HaarSystem.finite_wavelet_sum_eq_martingaleTransform
+theorem HaarSystem.finite_wavelet_sum_eq_martingaleTransform_of_term_identity
     (G : Grid (α := α)) [DecidableEq (Set α)]
     (H : HaarSystem (G := G))
     (s : Finset H.Index) (a c : H.Index → ℝ)
@@ -1356,8 +1554,38 @@ theorem HaarSystem.finite_wavelet_sum_eq_martingaleTransform_of_diff_by_level
       v (i.deepness G H + 1) x = c i) :
     MeasureTheory.martingaleTransform v M N =
       fun x => ∑ i ∈ s, a i * c i * H.wavelet G i x := by
-  exact H.finite_wavelet_sum_eq_martingaleTransform G s a c v M N hN
+  exact H.finite_wavelet_sum_eq_martingaleTransform_of_term_identity G s a c v M N hN
     (H.martingaleTransform_term_identity_of_diff_by_level G s a c v M N hdiff hv)
+
+/-- Specialized version of the martingale-transform identity for the partition martingale of a
+finite Haar-wavelet sum, assuming the level-wise martingale-difference expansion has already
+been proved separately. -/
+theorem HaarSystem.finite_wavelet_sum_eq_martingaleTransform_of_diff
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G))
+    (s : Finset H.Index) (a c : H.Index → ℝ)
+    (f : α → ℝ)
+    (hf : f = fun x => ∑ i ∈ s, a i * H.wavelet G i x)
+    (v : ℕ → α → ℝ) (N : ℕ)
+    (hN : ∀ i, i ∈ s → i.deepness G H ≤ N)
+    (hdiff : ∀ k, k ∈ Finset.range (N + 2) →
+      MeasureTheory.martingaleDiff (H.martingaleFromPartition G f) k =
+        fun x => ∑ i ∈ s.filter (fun i => i.deepness G H + 1 = k),
+          a i * H.wavelet G i x)
+    (hv : ∀ i, i ∈ s → ∀ x, x ∈ i.branchSupport G H →
+      v (i.deepness G H + 1) x = c i) :
+    MeasureTheory.martingaleTransform v (H.martingaleFromPartition G f) (N + 1) =
+      fun x => ∑ i ∈ s, c i * a i * H.wavelet G i x := by
+  subst hf
+  simpa [mul_assoc, mul_left_comm, mul_comm] using
+    H.finite_wavelet_sum_eq_martingaleTransform_of_diff_by_level
+      G s a c v
+      (H.martingaleFromPartition G (fun x => ∑ i ∈ s, a i * H.wavelet G i x))
+      (N + 1)
+      (by
+        intro i hi
+        exact Nat.succ_le_succ (hN i hi))
+      hdiff hv
 
 
 /-- At time zero, Burkholder's `martingaleDiff` is the initial value of the partition
@@ -1476,6 +1704,130 @@ theorem HaarSystem.projectionCoeff_finite_wavelet_sum_eq
   rw [HaarSystem.projectionCoeff, hnum]
   exact div_eq_of_eq_mul hden_ne (by ring)
 
+/-- Orthogonal projection coefficient of a finite Haar-wavelet sum onto a wavelet that does not
+appear in the sum. -/
+theorem HaarSystem.projectionCoeff_finite_wavelet_sum_eq_zero_of_not_mem
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G))
+    (s : Finset H.Index) (a : H.Index → ℝ) (j : H.Index)
+    (hj : j ∉ s) :
+    H.projectionCoeff G (fun x => ∑ i ∈ s, a i * H.wavelet G i x) j = 0 := by
+  classical
+  let D : ℝ := ∫ x, H.wavelet G j x * H.wavelet G j x ∂G.μ
+  have hden_ne : D ≠ 0 := by
+    simpa [D] using HaarSystem.integral_wavelet_mul_self_ne_zero G H j
+  have hnum :
+      (∫ x, (∑ i ∈ s, a i * H.wavelet G i x) * H.wavelet G j x ∂G.μ) = 0 := by
+    calc
+      (∫ x, (∑ i ∈ s, a i * H.wavelet G i x) * H.wavelet G j x ∂G.μ)
+          =
+        ∫ x, ∑ i ∈ s, (a i * H.wavelet G i x) * H.wavelet G j x ∂G.μ := by
+          congr
+          ext x
+          rw [Finset.sum_mul]
+      _ =
+        ∑ i ∈ s, ∫ x, (a i * H.wavelet G i x) * H.wavelet G j x ∂G.μ := by
+          rw [MeasureTheory.integral_finsetSum]
+          intro i hi
+          simpa [mul_assoc] using
+            (HaarSystem.integrable_wavelet_mul_wavelet G H i j).const_mul (a i)
+      _ =
+        ∑ i ∈ s, a i * ∫ x, H.wavelet G i x * H.wavelet G j x ∂G.μ := by
+          refine Finset.sum_congr rfl ?_
+          intro i hi
+          have hfun :
+              (fun x => (a i * H.wavelet G i x) * H.wavelet G j x) =
+                fun x => a i * (H.wavelet G i x * H.wavelet G j x) := by
+            funext x
+            ring
+          rw [hfun, MeasureTheory.integral_const_mul]
+      _ = 0 := by
+          refine Finset.sum_eq_zero ?_
+          intro i hi
+          have horth :
+              ∫ x, H.wavelet G i x * H.wavelet G j x ∂G.μ = 0 :=
+            H.integral_mul_wavelet_eq_zero_of_ne G i j (by
+              intro hij
+              exact hj (hij ▸ hi))
+          rw [horth, mul_zero]
+  rw [HaarSystem.projectionCoeff, hnum]
+  simp
+
+/-- The finite sum of integrable Haar wavelets is integrable. -/
+lemma HaarSystem.integrable_finite_wavelet_sum
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G))
+    (s : Finset H.Index) (a : H.Index → ℝ) :
+    MeasureTheory.Integrable (fun x => ∑ i ∈ s, a i * H.wavelet G i x) G.μ := by
+  classical
+  induction s using Finset.induction_on with
+  | empty =>
+      simp
+  | insert i s hi ih =>
+      simpa [Finset.sum_insert, hi] using (H.integrable_wavelet G i).const_mul (a i) |>.add ih
+
+/-- Two indexed Haar wavelets with the same branch support are the same function. -/
+lemma HaarSystem.wavelet_eq_of_branchSupport_eq
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G))
+    {i j : H.Index}
+    (hsupp : i.branchSupport G H = j.branchSupport G H) :
+    H.wavelet G i = H.wavelet G j := by
+  classical
+  rcases i with ⟨ilevel, icell, ihcell, ibranch⟩
+  rcases j with ⟨jlevel, jcell, jhcell, jbranch⟩
+  dsimp [HaarSystem.Index.branchSupport] at hsupp
+  have hbranch_eq :
+      ibranch.1 = jbranch.1 :=
+    (H.haarBranchSupport_eq_iff_eq_global G
+      ilevel jlevel icell jcell ihcell jhcell ibranch jbranch).1 hsupp
+  funext x
+  rw [HaarSystem.wavelet, HaarSystem.wavelet, H.haarWavelets_def, H.haarWavelets_def]
+  simp [hbranch_eq]
+
+/-- Distinct indices cannot have the same branch support. -/
+lemma HaarSystem.ne_of_branchSupport_eq_false
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G))
+    {i j : H.Index}
+    (hij : i ≠ j)
+    (hsupp : i.branchSupport G H = j.branchSupport G H) : False := by
+  have horth : ∫ x, H.wavelet G i x * H.wavelet G j x ∂G.μ = 0 :=
+    H.integral_mul_wavelet_eq_zero_of_ne G i j hij
+  rw [H.wavelet_eq_of_branchSupport_eq G hsupp] at horth
+  exact (HaarSystem.integral_wavelet_mul_self_ne_zero G H j) horth
+
+/-- On a node whose associated Haar index is absent from the finite sum, the corresponding
+martingale difference vanishes. -/
+theorem HaarSystem.martingaleDiff_martingaleFromPartition_finite_wavelet_sum_on_node_zero
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G))
+    (s : Finset H.Index) (a : H.Index → ℝ)
+    {n : ℕ} {P : Set α} (hP : P ∈ H.nodesAtDeepness G n)
+    {x : α} (hx : x ∈ P)
+    (hj : H.indexOfNode G n P hP ∉ s) :
+    MeasureTheory.martingaleDiff
+        (H.martingaleFromPartition G
+          (fun x => ∑ i ∈ s, a i * H.wavelet G i x)) (n + 1) x = 0 := by
+  classical
+  let j := H.indexOfNode G n P hP
+  have hf_int : MeasureTheory.Integrable
+      (fun x => ∑ i ∈ s, a i * H.wavelet G i x) G.μ :=
+    H.integrable_finite_wavelet_sum G s a
+  calc
+    MeasureTheory.martingaleDiff
+        (H.martingaleFromPartition G
+          (fun x => ∑ i ∈ s, a i * H.wavelet G i x)) (n + 1) x =
+        H.projectionCoeff G (fun x => ∑ i ∈ s, a i * H.wavelet G i x) j *
+          H.wavelet G j x := by
+          simpa [j] using
+            H.martingaleDiff_martingaleFromPartition_succ_eq_projectionCoeff_mul_wavelet
+              G (fun x => ∑ i ∈ s, a i * H.wavelet G i x) hf_int hP hx
+        _ = 0 * H.wavelet G j x := by
+          rw [H.projectionCoeff_finite_wavelet_sum_eq_zero_of_not_mem G s a j]
+          simp [j, hj]
+        _ = 0 := by simp
+
 /-- On a node whose associated Haar index belongs to the finite sum, the martingale
 difference of the partition martingale of that sum is the corresponding Haar term. -/
 theorem HaarSystem.martingaleDiff_martingaleFromPartition_finite_wavelet_sum_on_node
@@ -1508,6 +1860,289 @@ theorem HaarSystem.martingaleDiff_martingaleFromPartition_finite_wavelet_sum_on_
     _ = a (H.indexOfNode G n P hP) *
         H.wavelet G (H.indexOfNode G n P hP) x := by
           rfl
+
+/-- Level-wise Haar expansion of the martingale differences of the partition martingale of a
+finite Haar-wavelet sum. -/
+theorem HaarSystem.martingaleDiff_martingaleFromPartition_finite_wavelet_sum_eq_by_level
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G))
+    (s : Finset H.Index) (a : H.Index → ℝ)
+    (N : ℕ) :
+    ∀ k, k ∈ Finset.range (N + 1) →
+      MeasureTheory.martingaleDiff
+          (H.martingaleFromPartition G
+            (fun x => ∑ i ∈ s, a i * H.wavelet G i x)) k =
+        fun x => ∑ i ∈ s.filter (fun i => i.deepness G H + 1 = k),
+          a i * H.wavelet G i x := by
+  classical
+  intro k hk
+  rcases Nat.eq_zero_or_pos k with rfl | hkpos
+  · funext x
+    rw [H.martingaleDiff_martingaleFromPartition_zero]
+    have huniv : (Set.univ : Set α) ∈ H.nodesAtDeepness G 0 := by
+      simp [H.nodesAtDeepness_zero_eq_singleton G]
+    calc
+      H.martingaleFromPartition G (fun x => ∑ i ∈ s, a i * H.wavelet G i x) 0 x =
+          (∫ y in (Set.univ : Set α), ∑ i ∈ s, a i * H.wavelet G i y ∂G.μ) /
+            (G.μ Set.univ).toReal :=
+        H.martingaleFromPartition_eq_average_on_node G
+          (fun x => ∑ i ∈ s, a i * H.wavelet G i x) huniv (by simp)
+      _ = 0 := by
+        have hint :
+            ∫ y in (Set.univ : Set α), ∑ i ∈ s, a i * H.wavelet G i y ∂G.μ = 0 := by
+          simpa using
+            (calc
+              ∫ y, ∑ i ∈ s, a i * H.wavelet G i y ∂G.μ
+                  = ∑ i ∈ s, ∫ y, a i * H.wavelet G i y ∂G.μ := by
+                      rw [MeasureTheory.integral_finsetSum]
+                      intro i hi
+                      exact (H.integrable_wavelet G i).const_mul (a i)
+              _ = 0 := by
+                    refine Finset.sum_eq_zero ?_
+                    intro i hi
+                    rw [MeasureTheory.integral_const_mul, H.integral_wavelet_eq_zero G i, mul_zero])
+        rw [hint]
+        simp
+      _ = ∑ i ∈ s.filter (fun i => i.deepness G H + 1 = 0), a i * H.wavelet G i x := by
+        simp
+  · obtain ⟨n, rfl⟩ := Nat.exists_eq_succ_of_ne_zero hkpos.ne'
+    funext x
+    let nodeType := {P : Set α // P ∈ H.nodesAtDeepness G n}
+    have hex : ∃ P, P ∈ H.nodesAtDeepness G n ∧ x ∈ P := by
+      have hcover := (H.nodesAtDeepness_is_partition G n).1
+      have hx : x ∈ ⋃ P ∈ H.nodesAtDeepness G n, P := hcover ▸ Set.mem_univ x
+      simpa [Set.mem_iUnion, exists_prop] using hx
+    let P0 : nodeType := ⟨Classical.choose hex, (Classical.choose_spec hex).1⟩
+    have hxP0 : x ∈ P0.1 := (Classical.choose_spec hex).2
+    let j := H.indexOfNode G n P0.1 P0.2
+    have hjdeep : j.deepness G H = n := H.indexOfNode_deepness G n P0.1 P0.2
+    have hjbranch : j.branchSupport G H = P0.1 := H.indexOfNode_branchSupport G n P0.1 P0.2
+    by_cases hj : j ∈ s
+    · have hsum_single :
+          ∑ i ∈ s.filter (fun i => i.deepness G H + 1 = n + 1),
+            a i * H.wavelet G i x = a j * H.wavelet G j x := by
+        exact (Finset.sum_eq_single_of_mem
+          (s := s.filter (fun i => i.deepness G H + 1 = n + 1))
+          (a := j)
+          (f := fun i => a i * H.wavelet G i x)
+          (by simp [j, hjdeep, hj])
+          (by
+            intro i hi hij
+            have hideep : i.deepness G H = n := by
+              rw [Finset.mem_filter] at hi
+              omega
+            have hibranch_mem : i.branchSupport G H ∈ H.nodesAtDeepness G n := by
+              simpa [hideep] using H.branchSupport_mem_nodesAtDeepness G i
+            have h_eq_or_disj :=
+              H.nodesAtDeepness_eq_or_disjoint G n (i.branchSupport G H) P0.1 hibranch_mem P0.2
+            have hx_not_mem : x ∉ i.branchSupport G H := by
+              rcases h_eq_or_disj with hEq | hDisj
+              · intro hxi
+                exact (H.ne_of_branchSupport_eq_false G hij (hEq.trans hjbranch.symm)).elim
+              · intro hxi
+                exact (Set.disjoint_left.mp hDisj hxi hxP0).elim
+            have hwave_zero : H.wavelet G i x = 0 :=
+              H.wavelet_eq_zero_of_not_mem_branchSupport G i hx_not_mem
+            simp [hwave_zero]))
+      calc
+        MeasureTheory.martingaleDiff
+            (H.martingaleFromPartition G
+              (fun x => ∑ i ∈ s, a i * H.wavelet G i x)) (n + 1) x
+            = a j * H.wavelet G j x := by
+              simpa [j] using
+                H.martingaleDiff_martingaleFromPartition_finite_wavelet_sum_on_node
+                  G s a (H.integrable_finite_wavelet_sum G s a) P0.2 hxP0 hj
+        _ = ∑ i ∈ s.filter (fun i => i.deepness G H + 1 = n + 1),
+              a i * H.wavelet G i x := by
+              symm
+              exact hsum_single
+    · have hsum_zero :
+          ∑ i ∈ s.filter (fun i => i.deepness G H + 1 = n + 1),
+            a i * H.wavelet G i x = 0 := by
+        refine Finset.sum_eq_zero ?_
+        intro i hi
+        have hideep : i.deepness G H = n := by
+          rw [Finset.mem_filter] at hi
+          omega
+        have hibranch_mem : i.branchSupport G H ∈ H.nodesAtDeepness G n := by
+          simpa [hideep] using H.branchSupport_mem_nodesAtDeepness G i
+        have h_eq_or_disj :=
+          H.nodesAtDeepness_eq_or_disjoint G n (i.branchSupport G H) P0.1 hibranch_mem P0.2
+        have hx_not_mem : x ∉ i.branchSupport G H := by
+          rcases h_eq_or_disj with hEq | hDisj
+          · intro hxi
+            have his : i ∈ s := by
+              rw [Finset.mem_filter] at hi
+              exact hi.1
+            by_cases hij : i = j
+            · exact hj (hij ▸ his)
+            · exact (H.ne_of_branchSupport_eq_false G hij (hEq.trans hjbranch.symm)).elim
+          · intro hxi
+            exact (Set.disjoint_left.mp hDisj hxi hxP0).elim
+        have hwave_zero : H.wavelet G i x = 0 :=
+          H.wavelet_eq_zero_of_not_mem_branchSupport G i hx_not_mem
+        simp [hwave_zero]
+      calc
+        MeasureTheory.martingaleDiff
+            (H.martingaleFromPartition G
+              (fun x => ∑ i ∈ s, a i * H.wavelet G i x)) (n + 1) x
+            = 0 := by
+              simpa [j] using
+                H.martingaleDiff_martingaleFromPartition_finite_wavelet_sum_on_node_zero
+                  G s a P0.2 hxP0 hj
+        _ = ∑ i ∈ s.filter (fun i => i.deepness G H + 1 = n + 1),
+              a i * H.wavelet G i x := by
+              symm
+              exact hsum_zero
+
+/-- If `f` is a finite linear combination of Haar wavelets of deepness at most `N`, and `v`
+has the prescribed predictable values on the branch supports of those wavelets, then the
+terminal martingale transform of the partition martingale of `f` is exactly the weighted Haar
+sum. -/
+theorem HaarSystem.finite_wavelet_sum_eq_martingaleTransform
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G))
+    (s : Finset H.Index) (a c : H.Index → ℝ)
+    (f : α → ℝ)
+    (hf : f = fun x => ∑ i ∈ s, a i * H.wavelet G i x)
+    (v : ℕ → α → ℝ) (N : ℕ)
+    (hN : ∀ i, i ∈ s → i.deepness G H ≤ N)
+    (hv : ∀ i, i ∈ s → ∀ x, x ∈ i.branchSupport G H →
+      v (i.deepness G H + 1) x = c i) :
+    MeasureTheory.martingaleTransform v (H.martingaleFromPartition G f) (N + 1) =
+      fun x => ∑ i ∈ s, c i * a i * H.wavelet G i x := by
+  subst hf
+  simpa [mul_assoc, mul_left_comm, mul_comm] using
+    H.finite_wavelet_sum_eq_martingaleTransform_of_diff_by_level
+      G s a c v
+      (H.martingaleFromPartition G (fun x => ∑ i ∈ s, a i * H.wavelet G i x))
+      (N + 1)
+      (by
+        intro i hi
+        exact Nat.succ_le_succ (hN i hi))
+      (H.martingaleDiff_martingaleFromPartition_finite_wavelet_sum_eq_by_level G s a (N + 1))
+      hv
+
+/-- `L^p` Burkholder inequality for a finite Haar-wavelet sum written as a martingale transform
+of the partition martingale. -/
+theorem HaarSystem.eLpNorm_finite_wavelet_sum_le_Burkholder
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G))
+    (p : ENNReal) (hp_one : 1 < p) (hfin : p ≠ ⊤)
+    (s : Finset H.Index) (a c : H.Index → ℝ)
+    (hc : ∀ i, i ∈ s → |c i| ≤ 1) :
+    MeasureTheory.eLpNorm (fun x => ∑ i ∈ s, c i * a i * H.wavelet G i x) p G.μ ≤
+      ENNReal.ofReal (Burkholder.pStar p.toReal - 1) *
+        MeasureTheory.eLpNorm (fun x => ∑ i ∈ s, a i * H.wavelet G i x) p G.μ := by
+  letI : MeasureTheory.IsFiniteMeasure G.μ := G.isFinite
+  classical
+  let N := s.sup (fun i => i.deepness G H)
+  let f : α → ℝ := fun x => ∑ i ∈ s, a i * H.wavelet G i x
+  have hN : ∀ i, i ∈ s → i.deepness G H ≤ N := by
+    intro i hi
+    exact Finset.le_sup (s := s) (f := fun j : H.Index => j.deepness G H) hi
+  let containingNode (n : ℕ) (x : α) : {S : Set α // S ∈ H.nodesAtDeepness G n} := by
+    let hex : ∃ S, S ∈ H.nodesAtDeepness G n ∧ x ∈ S := by
+      have hcover := (H.nodesAtDeepness_is_partition G n).1
+      have hx : x ∈ ⋃ S ∈ H.nodesAtDeepness G n, S := hcover ▸ Set.mem_univ x
+      simpa [Set.mem_iUnion, exists_prop] using hx
+    exact ⟨Classical.choose hex, (Classical.choose_spec hex).1⟩
+  have hcontaining_mem : ∀ n x, x ∈ (containingNode n x).1 := by
+    intro n x
+    dsimp [containingNode]
+    exact (Classical.choose_spec
+      (show ∃ S, S ∈ H.nodesAtDeepness G n ∧ x ∈ S by
+        have hcover := (H.nodesAtDeepness_is_partition G n).1
+        have hx : x ∈ ⋃ S ∈ H.nodesAtDeepness G n, S := hcover ▸ Set.mem_univ x
+        simpa [Set.mem_iUnion, exists_prop] using hx)).2
+  have hcontaining_eq_of_mem :
+      ∀ n {x : α} (S : {S : Set α // S ∈ H.nodesAtDeepness G n}),
+        x ∈ S.1 → containingNode n x = S := by
+    intro n x S hxS
+    have hxT : x ∈ (containingNode n x).1 := hcontaining_mem n x
+    rcases H.nodesAtDeepness_eq_or_disjoint G n (containingNode n x).1 S.1
+        (containingNode n x).2 S.2 with hEq | hDisj
+    · exact Subtype.ext hEq
+    · exact (Set.disjoint_left.mp hDisj hxT hxS).elim
+  let w : ℕ → α → ℝ
+    | 0, _ => 0
+    | n + 1, x =>
+        let P := containingNode n x
+        let j := H.indexOfNode G n P.1 P.2
+        if hj : j ∈ s then c j else 0
+  have hwv : ∀ i, i ∈ s → ∀ x, x ∈ i.branchSupport G H →
+      w (i.deepness G H + 1) x = c i := by
+    intro i hi x hx
+    have hibranch_mem : i.branchSupport G H ∈ H.nodesAtDeepness G (i.deepness G H) := by
+      simpa using H.branchSupport_mem_nodesAtDeepness G i
+    have hP_eq : containingNode (i.deepness G H) x = ⟨i.branchSupport G H, hibranch_mem⟩ :=
+      hcontaining_eq_of_mem (i.deepness G H) ⟨i.branchSupport G H, hibranch_mem⟩ hx
+    let j := H.indexOfNode G (i.deepness G H) (i.branchSupport G H) hibranch_mem
+    have hj_eq : j = i := by
+      by_contra hij
+      exact H.ne_of_branchSupport_eq_false G hij
+        ((H.indexOfNode_branchSupport G
+            (i.deepness G H) (i.branchSupport G H) hibranch_mem).trans rfl)
+    simp [w, hP_eq, hi, j, hj_eq]
+  have hw0 : ∀ S, S ∈ H.nodesAtDeepness G 0 →
+      ∃ d : ℝ, Set.EqOn (w 0) (fun _ => d) S := by
+    intro S hS
+    refine ⟨0, ?_⟩
+    intro x hx
+    simp [w]
+  have hwpred : ∀ n S, S ∈ H.nodesAtDeepness G n →
+      ∃ d : ℝ, Set.EqOn (w (n + 1)) (fun _ => d) S := by
+    intro n S hS
+    let j := H.indexOfNode G n S hS
+    refine ⟨if hj : j ∈ s then c j else 0, ?_⟩
+    intro x hx
+    have hP_eq : containingNode n x = ⟨S, hS⟩ := hcontaining_eq_of_mem n ⟨S, hS⟩ hx
+    simp [w, hP_eq, j]
+  have hstrong : MeasureTheory.IsStronglyPredictable (H.mathlibFiltration G) w := by
+    rcases HaarSystem.exists_filtration_martingale_average G H with ⟨_, _, hpredictable⟩
+    exact hpredictable w hw0 hwpred
+  have hmart : MeasureTheory.Martingale (H.martingaleFromPartition G f)
+      (H.mathlibFiltration G) G.μ :=
+    H.martingaleFromPartition_martingale G f (H.integrable_finite_wavelet_sum G s a)
+  have hLp : ∀ n, MeasureTheory.MemLp (H.martingaleFromPartition G f n) p G.μ := by
+    intro n
+    exact H.martingaleFromPartition_memLp G f p n
+  have hbound : ∀ n, ∀ᵐ x ∂G.μ, |w n x| ≤ 1 := by
+    intro n
+    cases n with
+    | zero =>
+        exact Filter.Eventually.of_forall (fun x => by simp [w])
+    | succ n =>
+        exact Filter.Eventually.of_forall (fun x => by
+          let P := containingNode n x
+          let j := H.indexOfNode G n P.1 P.2
+          by_cases hj : j ∈ s
+          · simpa [w, P, j, hj] using hc j hj
+          · simp [w, P, j, hj])
+  have htransform :
+      MeasureTheory.martingaleTransform w (H.martingaleFromPartition G f) (N + 1) =
+        fun x => ∑ i ∈ s, c i * a i * H.wavelet G i x := by
+    exact H.finite_wavelet_sum_eq_martingaleTransform G s a c f rfl w N hN hwv
+  have hself : H.martingaleFromPartition G f (N + 1) = f := by
+    refine H.martingaleFromPartition_eq_self_of_finite_wavelet_sum_const_on_nodes G s a (N + 1) ?_
+    intro i hi P hP
+    exact H.wavelet_eqOn_nodesAtDeepness_of_deepness_succ_le G i
+      (Nat.succ_le_succ (hN i hi)) P hP
+  calc
+    MeasureTheory.eLpNorm (fun x => ∑ i ∈ s, c i * a i * H.wavelet G i x) p G.μ =
+        MeasureTheory.eLpNorm
+          (MeasureTheory.martingaleTransform w (H.martingaleFromPartition G f) (N + 1)) p G.μ := by
+      rw [htransform]
+    _ ≤ ENNReal.ofReal (Burkholder.pStar p.toReal - 1) *
+          MeasureTheory.eLpNorm (H.martingaleFromPartition G f (N + 1)) p G.μ := by
+      exact (MeasureTheory.Lp_Burkholder_inequality_martingaleTransform
+        p α G.μ (H.mathlibFiltration G) w (H.martingaleFromPartition G f)
+        hp_one hfin hstrong hmart hLp hbound) (N + 1)
+    _ = ENNReal.ofReal (Burkholder.pStar p.toReal - 1) * MeasureTheory.eLpNorm f p G.μ := by
+      rw [hself]
+    _ = ENNReal.ofReal (Burkholder.pStar p.toReal - 1) *
+          MeasureTheory.eLpNorm (fun x => ∑ i ∈ s, a i * H.wavelet G i x) p G.μ := by
+      rfl
 
 
 
