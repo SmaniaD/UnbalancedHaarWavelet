@@ -16,7 +16,7 @@ namespace UnbalancedHaarWavelet
 
 variable {α : Type*} [MeasurableSpace α]
 
-/-- Partition-based filtration: at each deepness level n, we have the partition
+/-- Partition-based  filtration: at each deepness level n, we have the partition
     (collection of disjoint measurable sets) nodesAtDeepness G n. -/
 noncomputable def HaarSystem.partitionFiltration
     (G : Grid (α := α)) [DecidableEq (Set α)]
