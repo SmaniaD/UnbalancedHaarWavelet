@@ -8,6 +8,7 @@ import UnbalancedHaarWavelet.GridDefinition
 import UnbalancedHaarWavelet.HaarWaveletsDefinition
 import UnbalancedHaarWavelet.HaarWaveletsInducedBinaryGrid
 import UnbalancedHaarWavelet.HaarWaveletsLinearCombinations
+import UnbalancedHaarWavelet.HaarWaveletsOrthogonality
 import Mathlib.Probability.Martingale.Basic
 import Burkholder
 
@@ -1427,6 +1428,93 @@ theorem HaarSystem.martingaleDiff_martingaleFromPartition_succ_eq_projectionCoef
   rcases HaarSystem.exists_filtration_martingale_average G H with ⟨_, hmart_avg, _⟩
   have hinc := (hmart_avg f hf).2 n hP hx
   simpa [MeasureTheory.martingaleDiff] using hinc.2
+
+/-- Orthogonal projection coefficient of a finite Haar-wavelet sum onto one of its terms. -/
+theorem HaarSystem.projectionCoeff_finite_wavelet_sum_eq
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G))
+    (s : Finset H.Index) (a : H.Index → ℝ) (j : H.Index)
+    (hj : j ∈ s)
+    (hInt : ∀ i, i ∈ s →
+      MeasureTheory.Integrable (fun x => (a i * H.wavelet G i x) * H.wavelet G j x) G.μ)
+    (hden_ne : (∫ x, H.wavelet G j x * H.wavelet G j x ∂G.μ) ≠ 0) :
+    H.projectionCoeff G (fun x => ∑ i ∈ s, a i * H.wavelet G i x) j = a j := by
+  classical
+  let D : ℝ := ∫ x, H.wavelet G j x * H.wavelet G j x ∂G.μ
+  have hnum :
+      (∫ x, (∑ i ∈ s, a i * H.wavelet G i x) * H.wavelet G j x ∂G.μ) =
+        a j * D := by
+    calc
+      (∫ x, (∑ i ∈ s, a i * H.wavelet G i x) * H.wavelet G j x ∂G.μ)
+          =
+        ∫ x, ∑ i ∈ s, (a i * H.wavelet G i x) * H.wavelet G j x ∂G.μ := by
+          congr
+          ext x
+          rw [Finset.sum_mul]
+      _ =
+        ∑ i ∈ s, ∫ x, (a i * H.wavelet G i x) * H.wavelet G j x ∂G.μ := by
+          rw [MeasureTheory.integral_finsetSum]
+          exact hInt
+      _ =
+        ∑ i ∈ s, a i * ∫ x, H.wavelet G i x * H.wavelet G j x ∂G.μ := by
+          refine Finset.sum_congr rfl ?_
+          intro i hi
+          have hfun :
+              (fun x => (a i * H.wavelet G i x) * H.wavelet G j x) =
+                fun x => a i * (H.wavelet G i x * H.wavelet G j x) := by
+            funext x
+            ring
+          rw [hfun, MeasureTheory.integral_const_mul]
+      _ = a j * D := by
+          refine Finset.sum_eq_single_of_mem j hj ?_
+          intro i hi hij
+          have horth :
+              ∫ x, H.wavelet G i x * H.wavelet G j x ∂G.μ = 0 :=
+            H.integral_mul_wavelet_eq_zero_of_ne G i j hij
+          rw [horth, mul_zero]
+  rw [HaarSystem.projectionCoeff, hnum]
+  exact div_eq_of_eq_mul hden_ne (by ring)
+
+/-- On a node whose associated Haar index belongs to the finite sum, the martingale
+difference of the partition martingale of that sum is the corresponding Haar term. -/
+theorem HaarSystem.martingaleDiff_martingaleFromPartition_finite_wavelet_sum_on_node
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G))
+    (s : Finset H.Index) (a : H.Index → ℝ)
+    (hf : MeasureTheory.Integrable
+      (fun x => ∑ i ∈ s, a i * H.wavelet G i x) G.μ)
+    {n : ℕ} {P : Set α} (hP : P ∈ H.nodesAtDeepness G n)
+    {x : α} (hx : x ∈ P)
+    (hj : H.indexOfNode G n P hP ∈ s)
+    (hInt : ∀ i, i ∈ s →
+      MeasureTheory.Integrable
+        (fun x => (a i * H.wavelet G i x) *
+          H.wavelet G (H.indexOfNode G n P hP) x) G.μ)
+    (hden_ne :
+      (∫ x, H.wavelet G (H.indexOfNode G n P hP) x *
+        H.wavelet G (H.indexOfNode G n P hP) x ∂G.μ) ≠ 0) :
+    MeasureTheory.martingaleDiff
+        (H.martingaleFromPartition G
+          (fun x => ∑ i ∈ s, a i * H.wavelet G i x)) (n + 1) x =
+      a (H.indexOfNode G n P hP) *
+        H.wavelet G (H.indexOfNode G n P hP) x := by
+  classical
+  let j := H.indexOfNode G n P hP
+  calc
+    MeasureTheory.martingaleDiff
+        (H.martingaleFromPartition G
+          (fun x => ∑ i ∈ s, a i * H.wavelet G i x)) (n + 1) x =
+        H.projectionCoeff G (fun x => ∑ i ∈ s, a i * H.wavelet G i x) j *
+          H.wavelet G j x := by
+          simpa [j] using
+            H.martingaleDiff_martingaleFromPartition_succ_eq_projectionCoeff_mul_wavelet
+              G (fun x => ∑ i ∈ s, a i * H.wavelet G i x) hf hP hx
+    _ = a j * H.wavelet G j x := by
+          rw [H.projectionCoeff_finite_wavelet_sum_eq G s a j (by simpa [j] using hj)
+            (by simpa [j] using hInt) (by simpa [j] using hden_ne)]
+    _ = a (H.indexOfNode G n P hP) *
+        H.wavelet G (H.indexOfNode G n P hP) x := by
+          rfl
 
 
 
