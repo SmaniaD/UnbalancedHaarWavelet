@@ -72,7 +72,6 @@ DOI: [10.1007/BF02649107](https://doi.org/10.1007/BF02649107)
 	- Full LaTeX mathematical write-up.
 
 
-```
 
 ## Status
 
