@@ -20,18 +20,15 @@ The formalization follows this pipeline:
 	 - Positivity of cell measures.
 	 - Measure decrease under refinement.
 
-2. **Good grid / quantitative control**
-	 - Ratio bounds on child/parent measures.
-
-3. **Induced binary grid**
+2. **Induced binary grid**
 	 - Existence of binary refinements built from partition children.
 	 - Combinatorial branch supports and measurable supports.
 
-4. **Haar wavelet system**
+3. **Haar wavelet system**
 	 - Wavelets defined from branch pairs.
 	 - Orthogonality and structural lemmas.
 
-5. **Full Haar system in $L^p$**
+4. **Full Haar system in $L^p$**
 	 - Dense span.
 	 - Martingale-transform viewpoint.
 	 - Unconditional basis result via Burkholder-type inequalities.
