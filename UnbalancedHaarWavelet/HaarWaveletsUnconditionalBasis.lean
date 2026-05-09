@@ -10,50 +10,18 @@ import Mathlib.MeasureTheory.Function.AEEqOfIntegral
 import Mathlib.Data.Finset.Image
 import UnbalancedHaarWavelet.GridDefinition
 import UnbalancedHaarWavelet.HaarWavelets_def_Martingale
+import UnbalancedHaarWavelet.HaarWaveletsDenseSpan
 import UnconditionalSchauderBasis.UnconditionalSchauderBasisNontrivialField
+
+/-!
+Unconditional-basis constructions for the full Haar family in `Lp`, combining
+finite-sign bounds with the dense-span theorem.
+-/
+set_option linter.style.header false
 
 namespace UnbalancedHaarWavelet
 
 open UnconditionalCriterion
-
-abbrev FullHaarLpSpace
-    {α : Type*} [MeasurableSpace α]
-    (G : Grid (α := α)) (p : ENNReal) : Type _ :=
-  MeasureTheory.Lp ℝ p G.μ
-
-theorem toLp_finsetSum_const_smul
-    {α ι : Type*} [MeasurableSpace α] [DecidableEq ι]
-    {μ : MeasureTheory.Measure α} (p : ENNReal)
-    (s : Finset ι) (f : ι → α → ℝ)
-    (hf : ∀ i, MeasureTheory.MemLp (f i) p μ) (a : ι → ℝ) :
-    ∑ i ∈ s, a i • (hf i).toLp (f i)
-      =
-    ((MeasureTheory.memLp_finsetSum s (fun i _ => (hf i).const_smul (a i)))).toLp
-      (fun x => ∑ i ∈ s, a i * f i x) := by
-  induction s using Finset.induction_on with
-  | empty =>
-      symm
-      exact MeasureTheory.MemLp.toLp_zero _
-  | insert i s hi ih =>
-      have hs_mem : MeasureTheory.MemLp (fun x => ∑ j ∈ s, a j * f j x) p μ :=
-        MeasureTheory.memLp_finsetSum s (fun j _ => (hf j).const_smul (a j))
-      calc
-        ∑ j ∈ insert i s, a j • (hf j).toLp (f j)
-            = a i • (hf i).toLp (f i) + ∑ j ∈ s, a j • (hf j).toLp (f j) := by
-                simp [Finset.sum_insert, hi]
-        _ = ((hf i).const_smul (a i)).toLp (a i • f i)
-              + hs_mem.toLp (fun x => ∑ j ∈ s, a j * f j x) := by
-                rw [ih, ← MeasureTheory.MemLp.toLp_const_smul]
-        _ = (((hf i).const_smul (a i)).add hs_mem).toLp
-              (fun x => (a i • f i) x + ∑ j ∈ s, a j * f j x) := by
-                symm
-                exact MeasureTheory.MemLp.toLp_add _ _
-        _ = ((MeasureTheory.memLp_finsetSum (insert i s)
-              (fun j _ => (hf j).const_smul (a j)))).toLp
-              (fun x => ∑ j ∈ insert i s, a j * f j x) := by
-          apply MeasureTheory.MemLp.toLp_congr
-          exact Filter.Eventually.of_forall (fun x => by
-            simp [Finset.sum_insert, hi, smul_eq_mul])
 
 theorem FullHaarSystem.eLpNorm_finite_sum_le_Burkholder
     {α : Type*} [MeasurableSpace α]
@@ -238,7 +206,7 @@ theorem FullHaarSystem.hasFiniteSignBound_of_memLp
     (hp_one : 1 < p) (hfin : p ≠ ⊤)
     (hC : 0 ≤ Burkholder.pStar p.toReal - 1)
     (e : ℕ ≃ F.Index)
-    (hmem : ∀ i : F.Index, MeasureTheory.MemLp (F.function G i) p G.μ) :
+  (hmem : ∀ i : F.Index, MeasureTheory.MemLp (F.function G i) p G.μ) :
     HasFiniteSignBound (𝕜 := ℝ)
       (fun n => (hmem (e n)).toLp (F.function G (e n)))
       (Burkholder.pStar p.toReal - 1) := by
@@ -323,6 +291,111 @@ theorem FullHaarSystem.hasFiniteSignBound_of_memLp
     _ = (Burkholder.pStar p.toReal - 1) * ‖∑ n ∈ s, a n • xEnum n‖ := by
       rw [hnorm_plain]
 
+theorem FullHaarSystem.memLp_function
+    {α : Type*} [MeasurableSpace α]
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (F : FullHaarSystem (G := G))
+    (p : ENNReal) [Fact (1 ≤ p)]
+    (i : F.Index) :
+    MeasureTheory.MemLp (F.function G i) p G.μ := by
+  letI : MeasureTheory.IsFiniteMeasure G.μ := G.isFinite
+  cases i with
+  | alpha =>
+      rw [FullHaarSystem.function, F.alphaFunction_def]
+      change MeasureTheory.MemLp
+        (Set.indicator (Set.univ : Set α) (fun _ => 1 / (G.μ Set.univ).toReal)) p G.μ
+      exact MeasureTheory.memLp_indicator_const p MeasurableSet.univ
+        (1 / (G.μ Set.univ).toReal)
+        (Or.inr (MeasureTheory.measure_lt_top G.μ Set.univ).ne)
+  | wavelet j =>
+      let T := F.binaryRefinement.tree j.level j.cell j.hcell
+      have hp_childs : j.branch.1.1 ⊆ T.Childs ∧ j.branch.1.2 ⊆ T.Childs :=
+        T.TreeStructureChilds j.branch.1 j.branch.2
+      have hp1_part : ∀ s, s ∈ j.branch.1.1 → s ∈ G.grid.partitions (j.level + 1) := by
+        intro s hs
+        exact (F.binaryRefinement.childs_are_children j.level j.cell j.hcell s).1
+          (hp_childs.1 hs) |>.1
+      have hp2_part : ∀ s, s ∈ j.branch.1.2 → s ∈ G.grid.partitions (j.level + 1) := by
+        intro s hs
+        exact (F.binaryRefinement.childs_are_children j.level j.cell j.hcell s).1
+          (hp_childs.2 hs) |>.1
+      have hA_meas : MeasurableSet (branchSupport j.branch.1.1) :=
+        measurableSet_branchSupport_of_partition G j.level j.branch.1.1 hp1_part
+      have hB_meas : MeasurableSet (branchSupport j.branch.1.2) :=
+        measurableSet_branchSupport_of_partition G j.level j.branch.1.2 hp2_part
+      have hA_mem :
+          MeasureTheory.MemLp
+            (Set.indicator (branchSupport j.branch.1.1)
+              (fun _ => 1 / (G.μ (branchSupport j.branch.1.1)).toReal)) p G.μ := by
+        simpa using MeasureTheory.memLp_indicator_const p hA_meas
+          (1 / (G.μ (branchSupport j.branch.1.1)).toReal)
+          (Or.inr (MeasureTheory.measure_lt_top (μ := G.μ) (branchSupport j.branch.1.1)).ne)
+      have hB_mem :
+          MeasureTheory.MemLp
+            (Set.indicator (branchSupport j.branch.1.2)
+              (fun _ => 1 / (G.μ (branchSupport j.branch.1.2)).toReal)) p G.μ := by
+        simpa using MeasureTheory.memLp_indicator_const p hB_meas
+          (1 / (G.μ (branchSupport j.branch.1.2)).toReal)
+          (Or.inr (MeasureTheory.measure_lt_top (μ := G.μ) (branchSupport j.branch.1.2)).ne)
+      rw [FullHaarSystem.function, HaarSystem.wavelet, F.haarWavelets_def]
+      change MeasureTheory.MemLp
+        ((Set.indicator (branchSupport j.branch.1.1)
+            (fun _ => 1 / (G.μ (branchSupport j.branch.1.1)).toReal))
+          - (Set.indicator (branchSupport j.branch.1.2)
+            (fun _ => 1 / (G.μ (branchSupport j.branch.1.2)).toReal))) p G.μ
+      exact hA_mem.sub hB_mem
+
+theorem FullHaarSystem.toLp_function_ne_zero
+    {α : Type*} [MeasurableSpace α]
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (F : FullHaarSystem (G := G))
+    (p : ENNReal) [Fact (1 ≤ p)]
+    (hmem : ∀ i : F.Index, MeasureTheory.MemLp (F.function G i) p G.μ)
+    (i : F.Index) :
+    (hmem i).toLp (F.function G i) ≠ 0 := by
+  intro hzero
+  have h_ae_zero : F.function G i =ᵐ[G.μ] 0 := by
+    refine (MeasureTheory.MemLp.coeFn_toLp (hmem i)).symm.trans ?_
+    simpa [hzero] using (MeasureTheory.Lp.coeFn_zero (E := ℝ) (p := p) (μ := G.μ))
+  have hsq_ae_zero :
+      (fun x => F.function G i x * F.function G i x) =ᵐ[G.μ] 0 := by
+    filter_upwards [h_ae_zero] with x hx
+    simp [hx]
+  have hintegral_zero :
+      ∫ x, F.function G i x * F.function G i x ∂G.μ = 0 := by
+    simpa using MeasureTheory.integral_congr_ae hsq_ae_zero
+  cases i with
+  | alpha =>
+      letI : MeasureTheory.IsFiniteMeasure G.μ := G.isFinite
+      let c : ℝ := 1 / (G.μ Set.univ).toReal
+      have hμuniv_pos : 0 < G.μ Set.univ := by
+        simpa [G.grid.first_partition_eq_univ] using
+          G.positive_measure 0 Set.univ (by simp [G.grid.first_partition_eq_univ])
+      have hc_ne : c ≠ 0 := by
+        apply one_div_ne_zero
+        exact ENNReal.toReal_ne_zero.mpr
+          ⟨ne_of_gt hμuniv_pos, (MeasureTheory.measure_lt_top G.μ Set.univ).ne⟩
+      have hμreal_ne : G.μ.real Set.univ ≠ 0 := by
+        exact (ENNReal.toReal_pos hμuniv_pos.ne' (MeasureTheory.measure_lt_top G.μ Set.univ).ne).ne'
+      have hself_ne :
+          ∫ x, F.function G FullHaarSystem.Index.alpha x *
+              F.function G FullHaarSystem.Index.alpha x ∂G.μ ≠ 0 := by
+        rw [FullHaarSystem.function, F.alphaFunction_def]
+        have hconst :
+            (fun x => normalizedAlphaFunction G x * normalizedAlphaFunction G x)
+              = fun _ => c * c := by
+          funext x
+          simp [normalizedAlphaFunction, c]
+        rw [hconst, MeasureTheory.integral_const]
+        simp [smul_eq_mul, hμreal_ne, hc_ne]
+      exact hself_ne hintegral_zero
+  | wavelet j =>
+      have hself_ne :
+          ∫ x, F.function G (.wavelet j) x * F.function G (.wavelet j) x ∂G.μ ≠ 0 := by
+        simpa [FullHaarSystem.function] using
+          HaarSystem.integral_wavelet_mul_self_ne_zero G F.toHaarSystem j
+      exact hself_ne hintegral_zero
+
 /--
 This is the abstract `Lp` criterion that should be applied to an enumeration of the full Haar
 system once the Burkholder estimate has been converted into a finite-sign bound on the associated
@@ -361,13 +434,42 @@ theorem exists_fullHaarSystem_unconditionalSchauderBasis_of_BurkholderSignBound
     (F : FullHaarSystem (G := G))
     (p : ENNReal)
   [Fact (1 ≤ p)]
-    (e : ℕ ≃ F.Index)
-    (x : ℕ → FullHaarLpSpace G p)
-    (hx_dense : HasDenseSpan (𝕜 := ℝ) x)
-    (hx_ne : ∀ n, x n ≠ 0)
-    (hC : 0 ≤ Burkholder.pStar p.toReal - 1)
-    (h_sign : HasFiniteSignBound (𝕜 := ℝ) x (Burkholder.pStar p.toReal - 1)) :
-    ∃ b : UnconditionalSchauderBasis ℝ (FullHaarLpSpace G p), b.basis = x := by
+    (hp_one : 1 < p)
+    (hp_top : p < ⊤)
+    (e : ℕ ≃ F.Index) :
+    ∃ b : UnconditionalSchauderBasis ℝ (FullHaarLpSpace G p),
+      b.basis = (fun n =>
+        (FullHaarSystem.memLp_function G F p (e n)).toLp (F.function G (e n))) := by
+  let hmem : ∀ i : F.Index, MeasureTheory.MemLp (F.function G i) p G.μ :=
+    FullHaarSystem.memLp_function G F p
+  have hfin : p ≠ ⊤ := ne_of_lt hp_top
+  have hp_one_real : 1 < p.toReal := by
+    exact (ENNReal.toReal_lt_toReal (by simp) hfin).2 hp_one
+  have hC : 0 ≤ Burkholder.pStar p.toReal - 1 := by
+    have hpstar_ge_one : 1 ≤ Burkholder.pStar p.toReal := by
+      calc
+        1 ≤ p.toReal := le_of_lt hp_one_real
+        _ ≤ Burkholder.pStar p.toReal := by
+          simpa [Burkholder.pStar, Majorants.pStar, Burkholder.q] using
+            (le_max_left p.toReal (Burkholder.q p.toReal))
+    linarith
+  let x : ℕ → FullHaarLpSpace G p := fun n => (hmem (e n)).toLp (F.function G (e n))
+  have hx_ne : ∀ n, x n ≠ 0 := by
+    intro n
+    simpa [x] using FullHaarSystem.toLp_function_ne_zero G F p hmem (e n)
+  have h_sign : HasFiniteSignBound (𝕜 := ℝ) x (Burkholder.pStar p.toReal - 1) := by
+    simpa [x] using FullHaarSystem.hasFiniteSignBound_of_memLp G F p hp_one hfin hC e hmem
+  have hrange : Set.range x = Set.range (fullHaarLpFamily G F p hmem) := by
+    ext y
+    constructor
+    · rintro ⟨n, rfl⟩
+      exact ⟨e n, rfl⟩
+    · rintro ⟨i, rfl⟩
+      exact ⟨e.symm i, by simp [x, fullHaarLpFamily]⟩
+  have hx_dense : HasDenseSpan (𝕜 := ℝ) x := by
+    rw [HasDenseSpan]
+    simpa [x, hrange] using
+      (dense_iff_closure_eq.mp (fullHaarFamily_dense G F p hfin hmem))
   exact
     exists_fullHaarSystem_unconditionalSchauderBasis_of_finiteSignBound
       G F p e x hx_dense hx_ne (Burkholder.pStar p.toReal - 1) hC h_sign
