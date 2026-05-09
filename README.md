@@ -4,7 +4,7 @@ This is a Lean 4 project whose goal is to formalize the construction of unbalanc
 
 The main objective is the proof that these wavelets form an unconditional Schauder basis of $L^p$ for every $1 < p < \infty$.
 
-This ia  a result by Girardi and  Sweldens 1997. We follow their construction and the proof.
+This ia  a result by Girardi and  Sweldens 1997. We follow their construction and  proof.
 
  Maria Girardi and Wim Sweldens,  
  A New Class of Unbalanced Haar Wavelets That Form an Unconditional Basis for $L^p$ on General Measure Spaces,  
