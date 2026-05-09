@@ -1,2 +1,9 @@
 /.lake
 .DS_Store
+docs/Documentation.aux
+docs/Documentation.dvi
+docs/Documentation.fdb_latexmk
+docs/Documentation.log
+docs/Documentation.out
+docs/Documentation.synctex.gz
+docs/Documentation.toc

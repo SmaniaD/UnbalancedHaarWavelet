@@ -1,0 +1,368 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{mathtools}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{enumitem}
+
+\geometry{margin=1in}
+
+% Theorem environments
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}[section]
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{example}{Example}[section]
+\newtheorem{remark}{Remark}[section]
+
+% Custom commands
+\newcommand{\Lp}[1]{L^{#1}}
+\newcommand{\lp}[1]{\ell^{#1}}
+\newcommand{\norm}[1]{\left\|#1\right\|}
+\newcommand{\abs}[1]{\left|#1\right|}
+\newcommand{\myset}[1]{\left\{#1\right\}}
+\newcommand{\inner}[2]{\langle #1, #2 \rangle}
+\newcommand{\meas}{\mu}
+\newcommand{\card}[1]{\# #1}
+\newcommand{\supp}{\operatorname{supp}}
+\newcommand{\const}{\operatorname{const}}
+\newcommand{\Real}{\mathbb{R}}
+\newcommand{\Nat}{\mathbb{N}}
+\newcommand{\ENNReal}{\overline{\mathbb{R}}_{\geq 0}}
+
+\title{\textbf{Unbalanced Haar Wavelets on General Measure Spaces}\\
+  \large A Formalization in Lean 4 of its construction and basic theory}
+\author{Daniel Smania}
+\date{May 2026}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+This document provides a comprehensive exposition of the Lean 4 formalization of unbalanced Haar wavelets on measure spaces. We present the definition of  a  grid structure on a measure space, the induced binary grid refinement, the definition of Haar wavelets associated to it and the full Haar system, and prove that these wavelets form an unconditional Schauder basis of $\Lp{p}$ for all $1 < p < \infty$. This result, originally due to Girardi and Sweldens (1997), is formalized as a significant step toward formalization of   their applications to Besov spaces on general measure spaces and the action of transfer operators on these spaces. 
+\end{abstract}
+
+\tableofcontents
+
+\newpage
+
+\section{Introduction}
+
+\subsection{Overview and Motivation}
+
+The theory of wavelets has become a fundamental tool in harmonic analysis, functional analysis, and signal processing. While classical orthogonal Haar systems are well-understood, particularly on Euclidean spaces, the construction of Haar wavelets on general measure spaces presents significant challenges and opportunities.
+
+Unbalanced Haar wavelets provide a powerful generalization that:
+\begin{itemize}
+  \item Works on arbitrary measure spaces with finite measure.
+  \item Forms an unconditional basis of $\Lp{p}$ for $1 < p < \infty$.
+  \item Accommodates non-dyadic and irregular subdivisions.
+\end{itemize}
+
+The key theoretical result, established by Girardi and Sweldens in 1997, is that these wavelets possess the unconditional basis property, a critical property for applications in  operator theory and functional analysis.
+
+\subsection{Paper Reference}
+
+This Lean 4 formalization  closely follows
+
+\noindent
+Maria Girardi and Wim Sweldens,  
+\textit{A New Class of Unbalanced Haar Wavelets That Form an Unconditional Basis for $\Lp{p}$ on General Measure Spaces},  
+Journal of Fourier Analysis and Applications, Volume 3, Number 4, 1997.  
+DOI: \url{https://doi.org/10.1007/BF02649107}
+
+\subsection{Formalization Scope}
+
+This Lean 4 formalization aims to:
+\begin{enumerate}
+  \item Rigorously define the grid structure on measure space.
+  \item Establish the existence of binary refinements via induced binary grids.
+  \item Construct unbalanced Haar wavelets associated to binary partitions.
+  \item Define the full Haar system of wavelets. 
+  \item Study its basic properties (orthogonality, dense span).
+  \item Associate unbalanced Haar wavelets linear combinations with   martingale differences and martingale transforms.
+  \item Prove the unconditional basis property in $\Lp{p}$ spaces using Burkholder's inequality for martingale transforms.
+\end{enumerate}
+
+\newpage
+
+\section{Grid Structures and Nested Partitions}
+
+\subsection{Nested Finite Partition Sequences}
+
+The foundational structure in our theory is a nested sequence of finite measurable partitions that hierarchically subdivides the measure space.
+
+\begin{definition}[Nested Finite Partition Sequence]
+Let $(\alpha, \mathcal{M}, \mu)$ be a measurable space. A \textbf{nested finite partition sequence} is a sequence of finite measurable partitions $\{\mathcal{P}_n\}_{n=0}^{\infty}$ satisfying:
+
+\begin{enumerate}[label=(\roman*)]
+  \item \textbf{Initial partition}: $\mathcal{P}_0 = \{\alpha\}$, consisting of the entire space
+  \item \textbf{Measurability}: For each $n \in \Nat$ and $Q \in \mathcal{P}_n$, the set $Q$ is measurable
+  \item \textbf{Nesting}: For each $n \in \Nat$ and $Q \in \mathcal{P}_{n+1}$, there exists $P \in \mathcal{P}_n$ such that $Q \subseteq P$. 
+  \item \textbf{Covering}: For each $n \in \Nat$, every $P \in \mathcal{P}_n$ is covered by elements of $\mathcal{P}_{n+1}$:
+    $$P \subseteq \bigcup_{Q \in \mathcal{P}_{n+1}, Q \subseteq P} Q$$
+  \item \textbf{Disjointness}: Elements at each level are pairwise disjoint: for $P, Q \in \mathcal{P}_n$ with $P \neq Q$, we have $P \cap Q = \emptyset$
+  \item \textbf{Space covering}: At each level, the partition covers the entire space:
+    $$\bigcup_{P \in \mathcal{P}_n} P = \alpha$$
+  \item \textbf{Sigma-algebra generation}: The sigma-algebra generated by $\bigcup_n \mathcal{P}_n$ equals $\mathcal{M}$:
+    $$\sigma\left(\bigcup_{n \in \Nat} \mathcal{P}_n\right) = \mathcal{M}$$
+\end{enumerate}
+\end{definition}
+
+\begin{remark}
+The finite partition structure creates a hierarchical tree-like subdivision of the space. Each partition element at level $n$ has at least one  child.(partition element at level $n+1$).
+\end{remark}
+
+\subsection{Grids and Measure Stability}
+
+\begin{definition}[Grid]
+A \textbf{grid} $G$ on a measure space $(\alpha, \mathcal{M}, \mu)$ consists of:
+
+\begin{enumerate}[label=(\roman*)]
+  \item A finite measure $\mu$: the measure space has finite total measure
+  \item A nested finite partition sequence $\{\mathcal{P}_n\}_{n=0}^{\infty}$
+  \item \textbf{Positive measure condition}: Every partition element has strictly positive measure:
+    $$\forall n \in \Nat, \forall Q \in \mathcal{P}_n: \mu(Q) > 0$$
+  \item \textbf{Measure decrease}: Each child cell has strictly smaller measure than its parent:
+    $$\forall n \in \Nat, \forall s \in \mathcal{P}_{n+1}, \forall t \in \mathcal{P}_n: s \subseteq t \implies \mu(s) < \mu(t)$$
+\end{enumerate}
+\end{definition}
+
+\begin{remark}
+The measure decrease property is crucial: it ensures that the hierarchy induced by the partition is respected by the measure structure, preventing pathological configurations where the measure does not decrease along refinement paths.
+\end{remark}
+
+\subsection{Children and Family Relations}
+
+Given a cell $Q \in \mathcal{P}_n$ in a grid $G$, its children are defined naturally:
+
+\begin{definition}[Children of a Grid Cell]
+For a grid $G$ and a partition element $Q \in \mathcal{P}_n$, the set of \textbf{children} of $Q$ is:
+$$\text{Children}(Q) := \myset{s \in \mathcal{P}_{n+1} \mid s \subseteq Q}$$
+
+The finset version is obtained by filtering the next partition level:
+$$\text{ChildrenFinset}(Q) := \myset{s \in \mathcal{P}_{n+1} \mid s \subseteq Q}$$
+\end{definition}
+
+\begin{lemma}[Existence of Children]
+Every cell in a grid has at least one child. Formally, for any $Q \in \mathcal{P}_n$:
+$$\text{Children}(Q) \neq \emptyset$$
+\end{lemma}
+
+\begin{proof}[Proof Sketch]
+By the covering property of nested partitions, $Q \subseteq \bigcup_{s \in \mathcal{P}_{n+1}, s \subseteq Q} s$. Since $Q$ is nonempty (as it has positive measure), there exists at least one child.
+\end{proof}
+
+\newpage
+
+
+
+
+\section{Binary Refinement of a Grid}
+
+
+Note that $\cup_n \mathcal{P}_n$ is a tree with the partial order $\subset$. 
+
+
+\begin{definition}[Binary Refinement of Grid] Given $P\in \mathcal{P}_n$ a  \textbf{binary refinement} associated with $P$  is a  binary trees $\mathcal{T}(n, Q)$ that is a collection of pairs $(A,B)$ where $A$ and $B$ are non-empty disjoint collections of children of $P$. $(A,B)$ is called a branch, its {\it combinatorial support} of $(A,B)$ is $A\cup B$ and its support is 
+$$Support (A,B) = \bigcup_{S\in A\cup B} S.$$
+ with a tree structure in the following way. If $A$(resp. $B$) has at least two children, then $(A,B)$ has.a child $(C,D)$ such that its combinatorial support is $A$(resp. $B$). Moreover child of $(A,B)$ has pairwise disjoint combinatorial support. Moreover 
+
+\begin{itemize} 
+\item[A.]  For  every child $Q$ of $P$ there is a pair $(A,B)$ such that either $A=\{Q\}$ or $B=\{Q\}$.
+\item[B.] There is a pair $(A,B)$ (the {\it root} of $\mathcal{T}(n, Q)$) sucht hat it combinatorial support is the collection of all children of $P$. 
+\end{itemize} 
+There is always  such trees  $\mathcal{T}(n, Q)$, as formalized in the library LaminarFamiliesMaximalBinaryTrees. 
+If you replace all $P$ in $\cup_n \mathcal{P}_n$  by $\mathcal{T}(n, Q)$, and connecting the ends of this tree with the children of $P$, we obtain a {\it binary} tree, called  a Binary Refinement of Grid. 
+\end{definition}  
+ 
+
+\begin{theorem}[Existence of Binary Refinements]
+Every grid $G$ admits a binary refinement. That is, for each cell $Q$ at level $n$, there exists a binary tree $\mathcal{T}(n, Q)$ rooted at $Q$ whose children are exactly the grid children of $Q$.
+\end{theorem}
+
+
+ 
+\newpage
+
+\section{Unbalanced HaarWavelets}
+
+
+Unbalanced Haar   wavelets are constructed from binary tree refinements
+
+\begin{definition}[Haar Wavelet]
+For a grid $G$ with a binary refinement, and a cell $Q \in \mathcal{P}_n$ with binary tree $\mathcal{T}(n, Q)$, for each branch $B = (L, R)$ in $\mathcal{T}(n, Q)$ (where $L$ is the left subtree and $R$ is the right subtree), the associated \textbf{Haar wavelet} $\psi_B$ is defined by:
+
+$$\psi_B(x) := \frac{1}{\mu(\text{Support}(L))} \mathbf{1}_{\text{Support}(L)}(x) - \frac{1}{\mu(\text{Support}(R))} \mathbf{1}_{\text{Support}(R)}(x)$$
+
+where:
+\begin{itemize}
+  \item $\mathbf{1}_{A}$ is the indicator function of set $A$.
+  \item $\mu(\text{Support}(L))$ and $\mu(\text{Support}(R))$ are the measures of the left and right supports. Here $Support (L)= \cup_{S\in L} S$. 
+\end{itemize}
+\end{definition}
+
+ 
+
+\subsection{System Structure and Indexing}
+
+\begin{definition}[Haar System]
+A \textbf{Haar system} on a grid $G$ is the collection of all Haar wavelets constructed from all branches of all binary trees associated with all cells at all levels:
+
+$$H_G := \myset{\psi_B : \text{$B$ is a branch in some tree } \mathcal{T}(n, Q), Q \in \mathcal{P}_n}$$
+
+This system is indexed by a countable index set $I_G$ enumerating all possible branches.
+\end{definition}
+
+ 
+
+\subsection{Orthogonality Properties}
+
+\begin{lemma}[$L^2$ Orthogonality]
+Haar wavelets from different branches satisfy orthogonality in $L^2(\mu)$:
+$$\inner{\psi_{B_1}}{\psi_{B_2}}_{L^2} = 0 \quad \text{if } B_1 \neq B_2.$$
+\end{lemma}
+
+\begin{lemma}[Scaling Function Orthogonality]
+If $\phi_Q(x) := \frac{1}{\mu(Q)} \mathbf{1}_Q(x)$ is the normalized scaling function for cell $Q$, then scaling functions are orthogonal to wavelets originating from different branches within their parent cell:
+$$\inner{\phi_Q}{\psi_B}_{L^2} = 0 \quad \text{if } B \text{ is a branch attached to a child of } Q$$
+\end{lemma}
+
+\newpage
+
+\section{Full Haar System}
+
+\subsection{Definition of Full Haar System}
+
+\begin{definition}[Full Haar System]
+The \textbf{full Haar system} $\mathcal{F}_G$ on a grid $G$ is the union of:
+\begin{enumerate}[label=(\roman*)]
+  \item The   function $\phi := \frac{1}{\mu(\alpha)} \mathbf{1}_{\alpha}$, the normalized indicator of the entire space.
+  \item All Haar wavelets: $H_G := \myset{\psi_B : B \text{ a branch in the binary refinement}}$.
+\end{enumerate}
+
+Thus: $\mathcal{F}_G := \{\phi\} \cup H_G$
+\end{definition}
+
+\begin{remark}
+The scaling function represents the "average" information at the coarsest level (the entire space), while the wavelets capture detail information at increasingly fine scales. The full system is overcomplete when taken all at once, but finite subfamilies form spanning sets for appropriate finite-dimensional subspaces.
+\end{remark}
+
+\subsection{Index Structure for the Full System}
+
+\begin{definition}[Full Haar Index]
+The index set for the full Haar system is typically defined as:
+$$I_{\text{full}} := \{\alpha\} \sqcup I_G$$
+
+where $\alpha$ indexes the scaling function and $I_G$ is the index set for wavelets.
+\end{definition}
+
+ 
+\subsection{Dense Span}
+
+\begin{theorem}[Dense Span in $\Lp{p}$]
+For $1 \leq  p < \infty$, the finite linear combinations of elements from the full Haar system are dense in $\Lp{p}(\mu)$:
+$$\overline{\text{span}(\mathcal{F}_G)} = \Lp{p}(\mu)$$
+\end{theorem}
+
+\begin{proof}[Proof Strategy]
+The proof uses the fact that the partitions generate the sigma-algebra and exploits the regularity properties of the measure. Simple functions are dense in $\Lp{p}$, and simple functions with respect to the generated sigma-algebra can be approximated by finite linear combinations of scaling functions and wavelets.
+\end{proof}
+
+\newpage
+
+\section{Unconditional Basis Theory}
+
+\subsection{Unconditional Schauder Basis}
+
+\begin{definition}[Unconditional Schauder Basis]
+Let $X$ be a Banach space. A sequence $(e_i)_{i \in \mathbb{N}}$ in $X$ is an \textbf{unconditional Schauder basis} if:
+
+\begin{enumerate}[label=(\roman*)]
+  \item \textbf{Uniqueness}: Every $x \in X$ has a unique representation:
+    $$x = \sum_{i=0}^\infty  c_i(x) e_i$$
+    where the convergence is in the norm topology of $X$, and the coefficients $c_i(x)$ are uniquely determined by $x$
+  
+  \item \textbf{Unconditionality}: The convergence is unconditional, meaning that for every permutation $\pi\colon \mathbb{N} \rightarrow\mathbb{N}$ we have 
+    $$ \sum_{i=0}^\infty  c_i(x) e_i  = x =  \sum_{i=0}^\infty  c_{\pi(i)} (x) e_{\pi(i)}.$$
+\end{enumerate}
+\end{definition}
+
+\subsection{Finite-Sign Bounds for Haar Wavelets}
+
+The key result establishing that the full Haar system forms an unconditional basis is the finite-sign bound.
+
+\begin{theorem}[Finite-Sign Bound via Burkholder Inequality]
+For $1 < p < \infty$, there exists a constant $C_p > 0$ such that for any finite collection of Haar wavelets $\myset{\psi_i}_{i \in J}$ and any choice of scalars $|c_i| \leq 1$:
+
+$$\left\|\sum_{i \in J} c_i \psi_i\right\|_{L^p} \leq C_p \left\|\sum_{i \in J} \psi_i\right\|_{L^p}$$
+
+The constant $C_p$ is related to the Burkholder constant. 
+\end{theorem}
+
+\begin{proof}[Proof Strategy]
+The proof uses the martingale structure induced by the binary refinement. The Burkholder inequality (formlizaed in the library Burkholder) provides the main step. 
+\end{proof}
+
+ 
+
+\newpage
+
+\section{Main Theorem: Unconditional Basis in $\Lp{p}$}
+
+\subsection{Statement of the Main Result}
+
+\begin{theorem}[Unconditional Basis Theorem for Full Haar System (Girardi and  Sweldens 1997)]
+Let $G$ be a  grid on a measure space $(\alpha, \mu)$.  Let $\mathcal{F}_G = \{\phi\} \cup H_G$ be the associated full Haar system. For any $1 < p < \infty$, the system $\mathcal{F}_G$ forms an \textbf{unconditional Schauder basis} for $\Lp{p}(\mu)$.     
+\end{theorem}
+
+\begin{remark}
+This result is a generalization of the classical orthogonal Haar basis on $\mathbb{R}$ with Lebesgue measure, but it applies to:
+\begin{itemize}
+  \item Arbitrary measure spaces.
+  \item Non-orthogonal wavelets (hence the term "unbalanced").
+  \item Non-dyadic subdivisions.
+  \item All $\Lp{p}$ spaces for $1 < p < \infty$ (not just $p = 2$).
+\end{itemize}
+\end{remark}
+
+ 
+\newpage
+
+ \subsection{Formalization} 
+\subsection{Key Files}
+
+\begin{itemize}
+  \item \textbf{GridDefinition.lean}: Definition of nested partitions and grids
+  \item \textbf{HaarWaveletsDefinition.lean}: Core wavelet definitions
+  \item \textbf{HaarWaveletsInducedBinaryGrid.lean}: Binary refinement construction
+  \item \textbf{HaarWavelets\_def\_Martingale.lean}: Martingale difference perspective
+  \item \textbf{HaarWaveletsDenseSpan.lean}: Density in $\Lp{p}$ spaces
+  \item \textbf{HaarWaveletsOrthogonality.lean}: Orthogonality properties
+  \item \textbf{HaarWaveletsDenseSpan.lean}: Linear independence and spanning properties
+  \item \textbf{HaarWaveletsUnconditionalBasis.lean}: Main basis theorem and unconditional property
+\end{itemize}
+
+\newpage
+
+\section{Conclusion}
+
+This Lean 4 formalization provides a rigorous mathematical foundation for the theory of unbalanced Haar wavelets on general measure spaces. The main result—that these wavelets form an unconditional basis for $\Lp{p}$ when $1 < p < \infty$—is a powerful theoretical tool with broad applications.
+
+\subsection{Future Directions}
+
+Potential extensions   include:
+
+\begin{itemize}
+  \item \textbf{Besov Spaces}: Extend to formalization for   Besov spaces on measure spaces with grids. 
+  \item \textbf{Transfer Operators}: Application to the formalization of   transfer operators results of dynamical systems action on  measure spaces.
+\end{itemize}
+
+ 
+\end{document}
