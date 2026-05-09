@@ -1,8 +1,8 @@
 # UnbalancedHaarWavelet
 
-This is an ongoing Lean 4 project whose goal is to formalize the construction of unbalanced Haar wavelets on measure spaces equipped with a finite measure and a sequence of finite measurable partitions.
+This is a Lean 4 project whose goal is to formalize the construction of unbalanced Haar wavelets on measure spaces equipped with a finite measure and a sequence of finite measurable partitions.
 
-The main objective is to prove that these wavelets form an unconditional Schauder basis of $L^p$ for every $1 < p < \infty$.
+The main objective is the proof that these wavelets form an unconditional Schauder basis of $L^p$ for every $1 < p < \infty$.
 
 The construction and the proof follow the approach developed in:
 
