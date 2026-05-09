@@ -2666,6 +2666,7 @@ theorem HaarSystem.binaryGrid_structure
     exact H.nodesAtDeepness_eq_or_disjoint G n S₁ S₂ hS₁ hS₂
   · intro n
     apply Set.eq_univ_iff_forall.2
+
     intro x
     induction n with
     | zero =>

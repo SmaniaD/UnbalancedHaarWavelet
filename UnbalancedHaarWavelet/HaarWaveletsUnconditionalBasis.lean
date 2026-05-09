@@ -8,6 +8,7 @@ import Mathlib.MeasureTheory.Function.L2Space
 import Mathlib.Analysis.InnerProductSpace.l2Space
 import Mathlib.MeasureTheory.Function.AEEqOfIntegral
 import Mathlib.Data.Finset.Image
+import Mathlib.Logic.Denumerable
 import UnbalancedHaarWavelet.GridDefinition
 import UnbalancedHaarWavelet.HaarWavelets_def_Martingale
 import UnbalancedHaarWavelet.HaarWaveletsDenseSpan
@@ -396,6 +397,116 @@ theorem FullHaarSystem.toLp_function_ne_zero
           HaarSystem.integral_wavelet_mul_self_ne_zero G F.toHaarSystem j
       exact hself_ne hintegral_zero
 
+noncomputable def HaarSystem.Index.equivSigma
+    {α : Type*} [MeasurableSpace α]
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G)) :
+    H.Index ≃
+      Σ n : ℕ,
+        Σ cell : {Q : Set α // Q ∈ G.grid.partitions n},
+          {r : Finset (Set α) × Finset (Set α) //
+            r ∈ (H.binaryRefinement.tree n cell.1 cell.2).Branches} where
+  toFun i := ⟨i.level, ⟨⟨i.cell, i.hcell⟩, i.branch⟩⟩
+  invFun x :=
+    { level := x.1
+      cell := x.2.1.1
+      hcell := x.2.1.2
+      branch := x.2.2 }
+  left_inv i := by
+    cases i
+    rfl
+  right_inv x := by
+    cases x with
+    | mk n x =>
+        cases x with
+        | mk cell branch =>
+            cases cell
+            rfl
+
+theorem HaarSystem.Index.countable
+    {α : Type*} [MeasurableSpace α]
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G)) :
+    Countable H.Index := by
+  classical
+  let e := HaarSystem.Index.equivSigma G H
+  exact e.injective.countable
+
+noncomputable def HaarSystem.Index.rootAtLevel
+    {α : Type*} [MeasurableSpace α]
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G)) (n : ℕ) : H.Index := by
+  classical
+  have huniv_nonempty : (Set.univ : Set α).Nonempty := by
+    simpa using G.partition_nonempty 0 Set.univ (by simp [G.grid.first_partition_eq_univ])
+  have hpart_nonempty : (G.grid.partitions n).Nonempty := by
+    by_contra h_empty
+    have hempty : G.grid.partitions n = ∅ := Finset.not_nonempty_iff_eq_empty.mp h_empty
+    have huniv_eq_empty : (Set.univ : Set α) = ∅ := by
+      simpa [hempty] using (G.grid.covering n).symm
+    simp [huniv_eq_empty] at huniv_nonempty
+  let Q : Set α := Classical.choose (show ∃ Q, Q ∈ G.grid.partitions n from hpart_nonempty)
+  have hQ : Q ∈ G.grid.partitions n :=
+    Classical.choose_spec (show ∃ Q, Q ∈ G.grid.partitions n from hpart_nonempty)
+  let T := H.binaryRefinement.tree n Q hQ
+  exact
+    { level := n
+      cell := Q
+      hcell := hQ
+      branch := ⟨T.Root, T.RootinBranches⟩ }
+
+theorem HaarSystem.Index.infinite
+    {α : Type*} [MeasurableSpace α]
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (H : HaarSystem (G := G)) :
+    Infinite H.Index := by
+  classical
+  refine Infinite.of_injective (fun n => HaarSystem.Index.rootAtLevel G H n) ?_
+  intro n m hnm
+  exact congrArg HaarSystem.Index.level hnm
+
+noncomputable def FullHaarSystem.Index.equivOption
+    {α : Type*} [MeasurableSpace α]
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (F : FullHaarSystem (G := G)) :
+    F.Index ≃ Option F.toHaarSystem.Index where
+  toFun i :=
+    match i with
+    | .alpha => none
+    | .wavelet j => some j
+  invFun i :=
+    match i with
+    | none => .alpha
+    | some j => .wavelet j
+  left_inv i := by
+    cases i <;> rfl
+  right_inv i := by
+    cases i <;> rfl
+
+theorem FullHaarSystem.index_nonempty_equiv_nat
+    {α : Type*} [MeasurableSpace α]
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (F : FullHaarSystem (G := G)) :
+    Nonempty (ℕ ≃ F.Index) := by
+  classical
+  let H : HaarSystem (G := G) := F.toHaarSystem
+  letI : Countable H.Index := HaarSystem.Index.countable G H
+  letI : Infinite H.Index := HaarSystem.Index.infinite G H
+  letI : Countable F.Index :=
+    (FullHaarSystem.Index.equivOption G F).injective.countable
+  letI : Infinite F.Index :=
+    Infinite.of_injective
+      (FullHaarSystem.Index.equivOption G F).symm
+      (FullHaarSystem.Index.equivOption G F).symm.injective
+  simpa using (nonempty_equiv_of_countable (α := ℕ) (β := F.Index))
+
+noncomputable def FullHaarSystem.indexEquivNat
+    {α : Type*} [MeasurableSpace α]
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (F : FullHaarSystem (G := G)) :
+    ℕ ≃ F.Index :=
+  Classical.choice (FullHaarSystem.index_nonempty_equiv_nat G F)
+
 /--
 This is the abstract `Lp` criterion that should be applied to an enumeration of the full Haar
 system once the Burkholder estimate has been converted into a finite-sign bound on the associated
@@ -435,11 +546,11 @@ theorem exists_fullHaarSystem_unconditionalSchauderBasis_of_BurkholderSignBound
     (p : ENNReal)
   [Fact (1 ≤ p)]
     (hp_one : 1 < p)
-    (hp_top : p < ⊤)
-    (e : ℕ ≃ F.Index) :
-    ∃ b : UnconditionalSchauderBasis ℝ (FullHaarLpSpace G p),
+    (hp_top : p < ⊤) :
+    ∃ (e : ℕ ≃ F.Index) (b : UnconditionalSchauderBasis ℝ (FullHaarLpSpace G p)),
       b.basis = (fun n =>
         (FullHaarSystem.memLp_function G F p (e n)).toLp (F.function G (e n))) := by
+  let e : ℕ ≃ F.Index := FullHaarSystem.indexEquivNat G F
   let hmem : ∀ i : F.Index, MeasureTheory.MemLp (F.function G i) p G.μ :=
     FullHaarSystem.memLp_function G F p
   have hfin : p ≠ ⊤ := ne_of_lt hp_top
@@ -470,8 +581,9 @@ theorem exists_fullHaarSystem_unconditionalSchauderBasis_of_BurkholderSignBound
     rw [HasDenseSpan]
     simpa [x, hrange] using
       (dense_iff_closure_eq.mp (fullHaarFamily_dense G F p hfin hmem))
-  exact
-    exists_fullHaarSystem_unconditionalSchauderBasis_of_finiteSignBound
-      G F p e x hx_dense hx_ne (Burkholder.pStar p.toReal - 1) hC h_sign
+  rcases
+    (exists_fullHaarSystem_unconditionalSchauderBasis_of_finiteSignBound
+      G F p e x hx_dense hx_ne (Burkholder.pStar p.toReal - 1) hC h_sign) with ⟨b, hb⟩
+  exact ⟨e, b, hb⟩
 
 end UnbalancedHaarWavelet
