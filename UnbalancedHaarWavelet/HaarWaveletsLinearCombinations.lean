@@ -1399,6 +1399,114 @@ theorem Normalized_indicator_in_Haar_Wavelets_span
               + sumDownSubTree_normed_indicator G H hparent s x) := by
             ring
 
+theorem indicator_partition_mem_span_FullHaarSystem
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (F : FullHaarSystem (G := G))
+    (s : Set α) (level : ℕ) (hs : s ∈ G.grid.partitions level) :
+    (fun x => Set.indicator s (fun _ => (1 : ℝ)) x)
+      ∈ Submodule.span ℝ (Set.range (FullHaarSystem.function G F)) := by
+  classical
+  let M : Submodule ℝ (α → ℝ) := Submodule.span ℝ (Set.range (FullHaarSystem.function G F))
+  have halpha_mem : normalizedAlphaFunction G ∈ M := by
+    have halpha : FullHaarSystem.function G F .alpha ∈ M :=
+      Submodule.subset_span ⟨.alpha, rfl⟩
+    simpa [FullHaarSystem.function, F.alphaFunction_def] using halpha
+  have hwavelet_mem :
+      ∀ {level : ℕ} {cell : Set α} (hcell : cell ∈ G.grid.partitions level)
+        (r : Finset (Set α) × Finset (Set α))
+        (hr : r ∈ (F.toHaarSystem.binaryRefinement.tree level cell hcell).Branches),
+        haarWavelet G.μ (branchSupport r.1) (branchSupport r.2) ∈ M := by
+    intro level cell hcell r hr
+    let i : F.toHaarSystem.Index :=
+      ⟨level, cell, hcell, ⟨r, hr⟩⟩
+    have hi_mem : FullHaarSystem.function G F (.wavelet i) ∈ M :=
+      Submodule.subset_span ⟨.wavelet i, rfl⟩
+    have hi_mem' : HaarSystem.wavelet G F.toHaarSystem i ∈ M := by
+      simpa [FullHaarSystem.function] using hi_mem
+    rw [HaarSystem.wavelet, F.toHaarSystem.haarWavelets_def level cell hcell ⟨r, hr⟩] at hi_mem'
+    exact hi_mem'
+  have hsubtree_mem :
+      ∀ {level : ℕ} {cell : Set α} (hcell : cell ∈ G.grid.partitions level) (u : Set α),
+        sumDownSubTree_normed_indicator G F.toHaarSystem hcell u ∈ M := by
+    intro level cell hcell u
+    have hsum :
+      (∑ B ∈
+          ((F.toHaarSystem.binaryRefinement.tree level cell hcell).Branches).filter
+            (fun B => u ⊆ branchSupport (Combinatorial_Support B)),
+        fun x =>
+          (if u ⊆ branchSupport B.1 then
+              (G.μ (branchSupport B.2)).toReal /
+                (G.μ (branchSupport (Combinatorial_Support B))).toReal
+            else
+              -((G.μ (branchSupport B.1)).toReal /
+                (G.μ (branchSupport (Combinatorial_Support B))).toReal)) *
+            haarWavelet G.μ (branchSupport B.1) (branchSupport B.2) x) ∈ M := by
+      refine Submodule.sum_mem M ?_
+      intro B hB
+      have hBranch : B ∈ (F.toHaarSystem.binaryRefinement.tree level cell hcell).Branches :=
+        (Finset.mem_filter.mp hB).1
+      by_cases hu : u ⊆ branchSupport B.1
+      · simp [hu]
+        exact M.smul_mem _ (hwavelet_mem hcell B hBranch)
+      · simp [hu]
+        exact M.neg_mem (M.smul_mem _ (hwavelet_mem hcell B hBranch))
+    have hrewrite :
+        sumDownSubTree_normed_indicator G F.toHaarSystem hcell u =
+          ∑ B ∈
+            ((F.toHaarSystem.binaryRefinement.tree level cell hcell).Branches).filter
+              (fun B => u ⊆ branchSupport (Combinatorial_Support B)),
+            fun x =>
+              (if u ⊆ branchSupport B.1 then
+                  (G.μ (branchSupport B.2)).toReal /
+                    (G.μ (branchSupport (Combinatorial_Support B))).toReal
+                else
+                  -((G.μ (branchSupport B.1)).toReal /
+                    (G.μ (branchSupport (Combinatorial_Support B))).toReal)) *
+                haarWavelet G.μ (branchSupport B.1) (branchSupport B.2) x := by
+      funext x
+      rw [Finset.sum_apply]
+      rfl
+    rw [hrewrite]
+    exact hsum
+  have hsum_mem : sumDown_normed_indicator G F.toHaarSystem s level hs ∈ M := by
+    have hsum :
+      (∑ i ∈ Finset.range level,
+        ∑ c ∈ (G.grid.partitions i).attach.filter (fun c => s ⊆ c.1),
+          sumDownSubTree_normed_indicator G F.toHaarSystem c.2 s) ∈ M := by
+      refine Submodule.sum_mem M ?_
+      intro i hi
+      refine Submodule.sum_mem M ?_
+      intro c hc
+      exact hsubtree_mem c.2 s
+    have hrewrite :
+        sumDown_normed_indicator G F.toHaarSystem s level hs =
+          ∑ i ∈ Finset.range level,
+            ∑ c ∈ (G.grid.partitions i).attach.filter (fun c => s ⊆ c.1),
+              sumDownSubTree_normed_indicator G F.toHaarSystem c.2 s := by
+      funext x
+      simp [sumDown_normed_indicator, Finset.sum_apply]
+    rw [hrewrite]
+    exact hsum
+  have hnormalized_mem :
+      (fun x => Set.indicator s (fun _ => 1 / (G.μ s).toReal) x) ∈ M := by
+    rw [Normalized_indicator_in_Haar_Wavelets_span G F.toHaarSystem s level hs]
+    exact M.add_mem halpha_mem hsum_mem
+  have hμs_pos : 0 < G.μ s := G.positive_measure level s hs
+  letI : MeasureTheory.IsFiniteMeasure G.μ := G.isFinite
+  have hμs_ne_zero : (G.μ s).toReal ≠ 0 := by
+    exact ENNReal.toReal_ne_zero.mpr ⟨by exact ne_of_gt hμs_pos, (MeasureTheory.measure_lt_top G.μ s).ne⟩
+  have hscale :
+      (G.μ s).toReal • (fun x => Set.indicator s (fun _ => 1 / (G.μ s).toReal) x)
+        = (fun x => Set.indicator s (fun _ => (1 : ℝ)) x) := by
+    funext x
+    by_cases hx : x ∈ s
+    · simp [Pi.smul_apply, Set.indicator_of_mem, hx, hμs_ne_zero]
+    · simp [Pi.smul_apply, Set.indicator_of_notMem, hx]
+  have hscaled_mem :
+      (G.μ s).toReal • (fun x => Set.indicator s (fun _ => 1 / (G.μ s).toReal) x) ∈ M :=
+    M.smul_mem _ hnormalized_mem
+  simpa [M] using hscale ▸ hscaled_mem
+
 
 
 

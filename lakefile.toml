@@ -22,6 +22,11 @@ name = "Burkholder"
 git = "https://github.com/SmaniaD/Burkholder.git"
 rev = "main"
 
+[[require]]
+name = "UnconditionalSchauderBasis"
+git = "https://github.com/SmaniaD/UnconditionalSchauderBasis.git"
+rev = "main"
+
 [[lean_lib]]
 name = "UnbalancedHaarWavelet"
 
