@@ -1,5 +1,7 @@
 # UnbalancedHaarWavelet
 
+[Read the PDF documentation](docs/Documentation.pdf)
+
 Lean 4 formalization of unbalanced Haar wavelets on general finite measure spaces, following Girardi-Sweldens (1997).
 
 ## Main Goal
@@ -69,20 +71,14 @@ DOI: [10.1007/BF02649107](https://doi.org/10.1007/BF02649107)
 - `docs/Documentation.tex`
 	- Full LaTeX mathematical write-up.
 
-## Build
 
-```bash
-lake update
-lake build
-```
-
-## Documentation Build
-
-```bash
-cd docs
-pdflatex -interaction=nonstopmode Documentation.tex
 ```
 
 ## Status
 
 This repository is part of a broader formalization program around wavelets on general measure spaces, with future targets including Besov-space applications and transfer-operator methods.
+
+
+## Contributors
+
+Daniel Smania
