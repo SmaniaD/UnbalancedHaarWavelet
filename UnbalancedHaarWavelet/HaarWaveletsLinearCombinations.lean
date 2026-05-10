@@ -154,10 +154,6 @@ lemma branchSupport_root_eq_cell
       exact (H.binaryRefinement.childs_are_children level cell hcell s).2
         ((G.mem_childrenFinset_iff level cell s).1 hs)
   calc
-  /--
-  Global sum over all ancestor levels: at each level, add the subtree
-  contribution from ancestors that contain `s`.
-  -/
     branchSupport (Combinatorial_Support T.Root)
         = branchSupport T.Childs := by rw [hroot_childs]
     _ = branchSupport (G.childrenFinset level cell) := by rw [hchilds_finset]
@@ -167,11 +163,6 @@ lemma branchSupport_root_eq_cell
 left support `A` is a linear combination of the indicator of `A ∪ B` and the Haar wavelet
 associated with the split `(A, B)`. -/
 lemma indicator_left_eq_union_indicator_add_mul_haarWavelet
-
-  /--
-  Repackages the chain expansion into the subtree-sum form
-  `sumDownSubTree_normed_indicator`.
-  -/
     (μ : MeasureTheory.Measure α) (A B : Set α)
     (hAB : Disjoint A B)
     (hA_ne : (μ A).toReal ≠ 0)
