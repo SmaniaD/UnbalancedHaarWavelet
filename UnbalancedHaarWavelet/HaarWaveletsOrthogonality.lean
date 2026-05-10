@@ -8,6 +8,14 @@ import Mathlib.MeasureTheory.Function.AEEqOfIntegral
 import UnbalancedHaarWavelet.GridDefinition
 import UnbalancedHaarWavelet.HaarWaveletsDefinition
 
+/-!
+Orthogonality and energy facts for Haar wavelets.
+
+This file proves integrability, zero-mean properties, and pairwise
+orthogonality statements, first for local branch supports and then for global
+indices in a Haar system.
+-/
+
 
 
 

@@ -8,7 +8,11 @@ import UnbalancedHaarWavelet.GridDefinition
 import UnbalancedHaarWavelet.HaarWaveletsDefinition
 
 /-!
-Support laminarity and the induced binary-grid structure attached to a Haar system.
+Support geometry for Haar branches and the induced binary-grid structure.
+
+This file shows how branch supports behave globally: they are laminar, can be
+organized by deepness, and recover a canonical binary-grid structure used by
+later martingale and basis arguments.
 -/
 set_option linter.style.header false
 set_option linter.style.openClassical false

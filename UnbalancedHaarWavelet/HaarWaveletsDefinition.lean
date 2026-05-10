@@ -6,6 +6,14 @@ import Mathlib.Analysis.InnerProductSpace.l2Space
 import Mathlib.MeasureTheory.Function.AEEqOfIntegral
 import UnbalancedHaarWavelet.GridDefinition
 
+/-!
+Core definitions for Haar systems on a grid.
+
+This file builds the basic objects used everywhere else: branch supports, Haar
+wavelets, indexed Haar families, and the full Haar system that includes the
+normalized father function.
+-/
+
 namespace UnbalancedHaarWavelet
 
 variable {α : Type*} [MeasurableSpace α]
@@ -14,7 +22,7 @@ variable {α : Type*} [MeasurableSpace α]
 
 
 
-/-- Existence of binary refinements of a good grid for any Grid. -/
+/-- Existence of binary refinements of a  grid for any Grid. -/
 theorem exists_binaryRefinementOfGrid
     (G : Grid (α := α)) [DecidableEq (Set α)]
     : Nonempty (BinaryRefinementOfGrid (G := G)) := by

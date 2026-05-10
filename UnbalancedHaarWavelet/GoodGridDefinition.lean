@@ -6,10 +6,22 @@ import Mathlib.Analysis.InnerProductSpace.l2Space
 import Mathlib.MeasureTheory.Function.AEEqOfIntegral
 import UnbalancedHaarWavelet.GridDefinition
 
+/-!
+Adds quantitative regularity assumptions to a grid.
+
+`GoodGrid` is a `Grid` with two uniform constants that control how cell
+measures shrink from parent to child. These bounds are later used when
+estimating Haar coefficients.
+-/
+
 namespace UnbalancedHaarWavelet
 
 variable {α : Type*} [MeasurableSpace α]
 
+/--
+A grid with uniform lower and upper measure-ratio bounds between a parent cell
+and any child cell at the next level.
+-/
 structure GoodGrid extends Grid (α := α) where
   lambda1 : ℝ
   /-- Upper ratio bound (strictly less than 1) -/

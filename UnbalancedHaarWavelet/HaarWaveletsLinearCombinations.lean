@@ -9,6 +9,14 @@ import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 import UnbalancedHaarWavelet.GridDefinition
 import UnbalancedHaarWavelet.HaarWaveletsDefinition
 
+/-!
+Algebraic identities for finite linear combinations of Haar wavelets.
+
+The lemmas here give explicit one-step and chain-level formulas for indicators
+and normalized indicators, which are later used to prove span and density
+results.
+-/
+
 namespace UnbalancedHaarWavelet
 
 open scoped BigOperators
@@ -146,6 +154,10 @@ lemma branchSupport_root_eq_cell
       exact (H.binaryRefinement.childs_are_children level cell hcell s).2
         ((G.mem_childrenFinset_iff level cell s).1 hs)
   calc
+  /--
+  Global sum over all ancestor levels: at each level, add the subtree
+  contribution from ancestors that contain `s`.
+  -/
     branchSupport (Combinatorial_Support T.Root)
         = branchSupport T.Childs := by rw [hroot_childs]
     _ = branchSupport (G.childrenFinset level cell) := by rw [hchilds_finset]
@@ -155,6 +167,11 @@ lemma branchSupport_root_eq_cell
 left support `A` is a linear combination of the indicator of `A ∪ B` and the Haar wavelet
 associated with the split `(A, B)`. -/
 lemma indicator_left_eq_union_indicator_add_mul_haarWavelet
+
+  /--
+  Repackages the chain expansion into the subtree-sum form
+  `sumDownSubTree_normed_indicator`.
+  -/
     (μ : MeasureTheory.Measure α) (A B : Set α)
     (hAB : Disjoint A B)
     (hA_ne : (μ A).toReal ≠ 0)
@@ -918,6 +935,12 @@ noncomputable def sumDownSubTree_normed_indicator
         * haarWavelet G.μ (branchSupport B.1) (branchSupport B.2) x
 
 
+/--
+Global ancestor-level sum for the normalized indicator expansion.
+
+At each level below `level`, this adds the subtree contribution from partition
+cells that contain `s`.
+-/
 noncomputable def sumDown_normed_indicator
     (G : Grid (α := α)) [DecidableEq (Set α)]
     (H : HaarSystem (G := G))
@@ -929,6 +952,9 @@ noncomputable def sumDown_normed_indicator
 
 
 
+/--
+Repackages the chain-based expansion as a subtree-sum formula.
+-/
 theorem normalized_indicator_child_eq_cell_add_sum_chain_2
     (G : Grid (α := α)) [DecidableEq (Set α)]
     (H : HaarSystem (G := G))
@@ -1223,6 +1249,14 @@ theorem normalized_indicator_child_eq_cell_add_sum_chain_2
             * haarWavelet G.μ (branchSupport B.1) (branchSupport B.2) x) := by
         rfl
 
+
+
+/--
+Important bridge theorem: any normalized partition indicator equals the
+normalized alpha function plus a finite Haar-wavelet correction.
+
+This is one of the main expansions used later in span and density arguments.
+-/
 theorem Normalized_indicator_in_Haar_Wavelets_span
     (G : Grid (α := α)) [DecidableEq (Set α)]
     (H : HaarSystem (G := G))
@@ -1399,6 +1433,12 @@ theorem Normalized_indicator_in_Haar_Wavelets_span
               + sumDownSubTree_normed_indicator G H hparent s x) := by
             ring
 
+/--
+Very important global span result: every partition indicator lies in the
+linear span of the full Haar system.
+
+This theorem is a key ingredient later used to prove density in `Lp`.
+-/
 theorem indicator_partition_mem_span_FullHaarSystem
     (G : Grid (α := α)) [DecidableEq (Set α)]
     (F : FullHaarSystem (G := G))

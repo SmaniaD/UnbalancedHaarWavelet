@@ -15,8 +15,12 @@ import UnbalancedHaarWavelet.HaarWaveletsDenseSpan
 import UnconditionalSchauderBasis.UnconditionalSchauderBasisNontrivialField
 
 /-!
-Unconditional-basis constructions for the full Haar family in `Lp`, combining
-finite-sign bounds with the dense-span theorem.
+This file proves the unconditional-basis result for the full Haar family in
+`Lp`, in the range `1 < p < ∞`, over a finite-measure grid setting.
+
+Big picture: first we get a finite-sign estimate from Burkholder-type bounds,
+then we combine that with density of the Haar span to build an unconditional
+Schauder basis.
 -/
 set_option linter.style.header false
 
@@ -24,6 +28,12 @@ namespace UnbalancedHaarWavelet
 
 open UnconditionalCriterion
 
+/--
+Core finite-sum estimate for the full Haar family.
+
+Idea: split off the `alpha` term, rewrite the rest as a wavelet-only sum, then
+apply the known Burkholder estimate for finite wavelet combinations.
+-/
 theorem FullHaarSystem.eLpNorm_finite_sum_le_Burkholder
     {α : Type*} [MeasurableSpace α]
     (G : Grid (α := α)) [DecidableEq (Set α)]
@@ -199,6 +209,13 @@ theorem FullHaarSystem.eLpNorm_finite_sum_le_Burkholder
           MeasureTheory.eLpNorm (fun x => ∑ i ∈ t, a i * F.function G i x) p G.μ := by
           rw [hplain]
 
+/--
+Moves the finite Burkholder estimate to an arbitrary enumeration of the full
+Haar family in `Lp`.
+
+In plain terms: if each coefficient `ε n` is in `{-1, 1}`, then the signed
+finite sum is controlled by the same constant times the unsigned one.
+-/
 theorem FullHaarSystem.hasFiniteSignBound_of_memLp
     {α : Type*} [MeasurableSpace α]
     (G : Grid (α := α)) [DecidableEq (Set α)]
@@ -216,6 +233,7 @@ theorem FullHaarSystem.hasFiniteSignBound_of_memLp
   let t : Finset F.Index := s.image e
   let aF : F.Index → ℝ := fun i => a (e.symm i)
   let εF : F.Index → ℝ := fun i => ε (e.symm i)
+  -- These are the concrete finite sums in function form.
   let plainFun : α → ℝ := fun x => ∑ n ∈ s, a n * F.function G (e n) x
   let signFun : α → ℝ := fun x => ∑ n ∈ s, (ε n * a n) * F.function G (e n) x
   let xEnum : ℕ → FullHaarLpSpace G p := fun n => (hmem (e n)).toLp (F.function G (e n))
@@ -255,6 +273,7 @@ theorem FullHaarSystem.hasFiniteSignBound_of_memLp
         simpa [t] using hn'
     · intro n hn
       simp [aF, εF, mul_comm]
+  -- Convert function inequalities to norm inequalities in `Lp`.
   have hplain_mem : MeasureTheory.MemLp plainFun p G.μ := by
     dsimp [plainFun]
     exact MeasureTheory.memLp_finsetSum s (fun n _ => (hmem (e n)).const_smul (a n))
@@ -292,6 +311,12 @@ theorem FullHaarSystem.hasFiniteSignBound_of_memLp
     _ = (Burkholder.pStar p.toReal - 1) * ‖∑ n ∈ s, a n • xEnum n‖ := by
       rw [hnorm_plain]
 
+/--
+Shows each full Haar function is in `Lp`.
+
+`alpha` is a normalized constant function, and a wavelet is a difference of two
+indicator pieces, so both cases are handled directly.
+-/
 theorem FullHaarSystem.memLp_function
     {α : Type*} [MeasurableSpace α]
     (G : Grid (α := α)) [DecidableEq (Set α)]
@@ -346,6 +371,13 @@ theorem FullHaarSystem.memLp_function
             (fun _ => 1 / (G.μ (branchSupport j.branch.1.2)).toReal))) p G.μ
       exact hA_mem.sub hB_mem
 
+/--
+The `Lp` class of a full Haar function is never zero.
+
+Proof sketch: if the class were zero, the function would be almost everywhere
+zero, so its self-product integral would vanish; that contradicts known
+non-vanishing of the corresponding Haar energy.
+-/
 theorem FullHaarSystem.toLp_function_ne_zero
     {α : Type*} [MeasurableSpace α]
     (G : Grid (α := α)) [DecidableEq (Set α)]
@@ -397,6 +429,11 @@ theorem FullHaarSystem.toLp_function_ne_zero
           HaarSystem.integral_wavelet_mul_self_ne_zero G F.toHaarSystem j
       exact hself_ne hintegral_zero
 
+/--
+Packages a Haar index as explicit level/cell/branch data.
+
+This is just a bookkeeping equivalence used later for countability.
+-/
 noncomputable def HaarSystem.Index.equivSigma
     {α : Type*} [MeasurableSpace α]
     (G : Grid (α := α)) [DecidableEq (Set α)]
@@ -423,6 +460,9 @@ noncomputable def HaarSystem.Index.equivSigma
             cases cell
             rfl
 
+/--
+Countability of Haar indices, obtained from the sigma representation above.
+-/
 theorem HaarSystem.Index.countable
     {α : Type*} [MeasurableSpace α]
     (G : Grid (α := α)) [DecidableEq (Set α)]
@@ -432,6 +472,10 @@ theorem HaarSystem.Index.countable
   let e := HaarSystem.Index.equivSigma G H
   exact e.injective.countable
 
+/--
+Chooses a canonical Haar index at each level by taking a root branch of some
+cell in that level partition.
+-/
 noncomputable def HaarSystem.Index.rootAtLevel
     {α : Type*} [MeasurableSpace α]
     (G : Grid (α := α)) [DecidableEq (Set α)]
@@ -455,6 +499,10 @@ noncomputable def HaarSystem.Index.rootAtLevel
       hcell := hQ
       branch := ⟨T.Root, T.RootinBranches⟩ }
 
+    /--
+    Infinitude of Haar indices, witnessed by sending each natural number to the
+    chosen root index at that level.
+    -/
 theorem HaarSystem.Index.infinite
     {α : Type*} [MeasurableSpace α]
     (G : Grid (α := α)) [DecidableEq (Set α)]
@@ -465,6 +513,10 @@ theorem HaarSystem.Index.infinite
   intro n m hnm
   exact congrArg HaarSystem.Index.level hnm
 
+/--
+Splits full Haar indices into either the special `alpha` index or a wavelet
+index.
+-/
 noncomputable def FullHaarSystem.Index.equivOption
     {α : Type*} [MeasurableSpace α]
     (G : Grid (α := α)) [DecidableEq (Set α)]
@@ -483,6 +535,10 @@ noncomputable def FullHaarSystem.Index.equivOption
   right_inv i := by
     cases i <;> rfl
 
+/--
+Builds an enumeration of full Haar indices by combining countability and
+infinitude.
+-/
 theorem FullHaarSystem.index_nonempty_equiv_nat
     {α : Type*} [MeasurableSpace α]
     (G : Grid (α := α)) [DecidableEq (Set α)]
@@ -500,6 +556,9 @@ theorem FullHaarSystem.index_nonempty_equiv_nat
       (FullHaarSystem.Index.equivOption G F).symm.injective
   simpa using (nonempty_equiv_of_countable (α := ℕ) (β := F.Index))
 
+/--
+Concrete chosen enumeration of full Haar indices.
+-/
 noncomputable def FullHaarSystem.indexEquivNat
     {α : Type*} [MeasurableSpace α]
     (G : Grid (α := α)) [DecidableEq (Set α)]
@@ -508,11 +567,13 @@ noncomputable def FullHaarSystem.indexEquivNat
   Classical.choice (FullHaarSystem.index_nonempty_equiv_nat G F)
 
 /--
-This is the abstract `Lp` criterion that should be applied to an enumeration of the full Haar
-system once the Burkholder estimate has been converted into a finite-sign bound on the associated
-`Lp` vectors.
+This is the generic final step.
 
-The intended sequence is `n ↦ [FullHaarSystem.function G F (e n)]` in `MeasureTheory.Lp ℝ p G.μ`.
+If you already have an enumerated family in `Lp` with dense span, no zero
+vectors, and a finite-sign bound, this theorem gives an unconditional Schauder
+basis whose basis vectors are exactly that family.
+
+The parameter `e` is kept here so this statement matches the later Haar setup.
 -/
 theorem exists_fullHaarSystem_unconditionalSchauderBasis_of_finiteSignBound
   {α : Type*} [MeasurableSpace α]
@@ -534,10 +595,15 @@ theorem exists_fullHaarSystem_unconditionalSchauderBasis_of_finiteSignBound
       x hx_dense hx_ne C hC h_sign
 
 /--
-Version of the previous construction specialized to the Burkholder constant.  To obtain the full
-Haar unconditional basis theorem, it remains to prove `h_sign` from
-`HaarSystem.eLpNorm_finite_wavelet_sum_le_Burkholder_2` for the `Lp` realization of the
-enumerated full Haar system.
+    Final result proving that the full Haar system can be rearranged into an unconditional Schauder basis
+    for `Lp` when `1 < p < ∞`.
+
+    What this theorem does:
+    1. Choose an enumeration of the full Haar indices.
+    2. Turn Haar functions into vectors in `Lp`.
+    3. Get the finite-sign bound from the Burkholder estimate.
+    4. Use density of the Haar span.
+    5. Apply the generic criterion above.
 -/
 theorem exists_fullHaarSystem_unconditionalSchauderBasis_of_BurkholderSignBound
   {α : Type*} [MeasurableSpace α]
@@ -568,6 +634,7 @@ theorem exists_fullHaarSystem_unconditionalSchauderBasis_of_BurkholderSignBound
   have hx_ne : ∀ n, x n ≠ 0 := by
     intro n
     simpa [x] using FullHaarSystem.toLp_function_ne_zero G F p hmem (e n)
+  -- Finite-sign control comes from the Burkholder estimate proved earlier.
   have h_sign : HasFiniteSignBound (𝕜 := ℝ) x (Burkholder.pStar p.toReal - 1) := by
     simpa [x] using FullHaarSystem.hasFiniteSignBound_of_memLp G F p hp_one hfin hC e hmem
   have hrange : Set.range x = Set.range (fullHaarLpFamily G F p hmem) := by
@@ -577,6 +644,7 @@ theorem exists_fullHaarSystem_unconditionalSchauderBasis_of_BurkholderSignBound
       exact ⟨e n, rfl⟩
     · rintro ⟨i, rfl⟩
       exact ⟨e.symm i, by simp [x, fullHaarLpFamily]⟩
+  -- Transfer density from the known dense Haar family to the enumerated family `x`.
   have hx_dense : HasDenseSpan (𝕜 := ℝ) x := by
     rw [HasDenseSpan]
     simpa [x, hrange] using

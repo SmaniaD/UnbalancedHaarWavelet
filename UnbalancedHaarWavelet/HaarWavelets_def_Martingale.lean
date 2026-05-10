@@ -12,6 +12,14 @@ import UnbalancedHaarWavelet.HaarWaveletsOrthogonality
 import Mathlib.Probability.Martingale.Basic
 import Burkholder
 
+/-!
+Martingale viewpoint for finite Haar expansions.
+
+This file connects grid/Haar constructions to filtration and martingale tools,
+then rewrites finite Haar sums as martingale-transform expressions so the
+Burkholder inequality can be applied.
+-/
+
 set_option linter.style.header false
 
 namespace UnbalancedHaarWavelet
@@ -2187,6 +2195,16 @@ theorem HaarSystem.eLpNorm_finite_wavelet_sum_le_Burkholder
           MeasureTheory.eLpNorm (fun x => ∑ i ∈ s, a i * H.wavelet G i x) p G.μ := by
       rfl
 
+
+
+
+/--
+Burkholder estimate for a finite Haar sum after adding a constant term.
+
+This is the affine version of the previous bound: besides the wavelet sum, we
+allow an extra constant coefficient (`a0`) and its sign factor (`c0`) with
+`|c0| ≤ 1`.
+-/
 theorem HaarSystem.eLpNorm_finite_wavelet_sum_le_Burkholder_2
     (G : Grid (α := α)) [DecidableEq (Set α)]
     (H : HaarSystem (G := G))

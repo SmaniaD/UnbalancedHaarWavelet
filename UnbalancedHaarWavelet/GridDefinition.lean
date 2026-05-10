@@ -5,6 +5,14 @@ import Mathlib.MeasureTheory.Function.L2Space
 import Mathlib.Analysis.InnerProductSpace.l2Space
 import Mathlib.MeasureTheory.Function.AEEqOfIntegral
 
+/-!
+Foundational grid objects used by the rest of the project.
+
+This file defines nested finite partitions and grids, then proves core helper
+facts: nonemptiness of cells, child structure, and basic containment/disjoint
+alternatives across levels.
+-/
+
 namespace UnbalancedHaarWavelet
 
 variable {α : Type*} [MeasurableSpace α]
@@ -60,11 +68,13 @@ noncomputable def Grid.childrenFinset
         classical
         exact (G.grid.partitions (n + 1)).filter (fun s => s ⊆ Q)
 
+    /-- Membership bridge between set-based and finset-based child collections. -/
 lemma Grid.mem_childrenFinset_iff (G : Grid (α := α)) (n : ℕ) (Q s : Set α) :
         s ∈ G.childrenFinset n Q ↔ s ∈ G.children n Q := by
     classical
     simp [Grid.childrenFinset, Grid.children]
 
+    /-- Iterated version of `nested`: jump directly from level `n + k` down to level `n`. -/
 lemma NestedFinitePartitionSequence.nested_iterate
     (S : NestedFinitePartitionSequence (α := α))
     (n k : ℕ) (s : Set α) (hs : s ∈ S.partitions (n + k)) :
@@ -294,8 +304,7 @@ theorem Grid.not_children_card_eq_one
     simpa [hQ_eq_s] using G.measure_decrease n s Q hs_part hQ hs_sub
   exact (lt_irrefl (G.μ Q)) hμQ_lt_self
 
-/-- Conclusion: every partition element has at least two children,
-    assuming children cover each parent cell. -/
+/-- Conclusion: every partition element has at least two children. -/
 theorem Grid.all_partition_elements_have_two_children
     (G : Grid (α := α)) :
     ∀ n (Q : Set α), Q ∈ G.grid.partitions n → (G.childrenFinset n Q).card ≥ 2 := by
