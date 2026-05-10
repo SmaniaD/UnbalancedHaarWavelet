@@ -12,7 +12,7 @@ import Mathlib.MeasureTheory.Function.AEEqOfIntegral
 import Mathlib.MeasureTheory.PiSystem
 import Mathlib.Data.Finset.Image
 import UnbalancedHaarWavelet.HaarWaveletsLinearCombinations
-import UnconditionalSchauderBasis.UnconditionalSchauderBasisNontrivialField
+
 
 /-!
 Density of the span of full Haar family in `Lp`.
