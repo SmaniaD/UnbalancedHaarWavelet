@@ -12,7 +12,7 @@ import Mathlib.Logic.Denumerable
 import UnbalancedHaarWavelet.GridDefinition
 import UnbalancedHaarWavelet.HaarWavelets_def_Martingale
 import UnbalancedHaarWavelet.HaarWaveletsDenseSpan
-import UnconditionalSchauderBasis.UnconditionalSchauderBasisNontrivialField
+import UnconditionalSchauderBasis
 
 /-!
 This file proves the unconditional-basis result for the full Haar family in
