@@ -10,22 +10,20 @@ relaxedAutoImplicit = false
 weak.linter.mathlibStandardSet = true
 maxSynthPendingDepth = 3
 
- 
-
 [[require]]
 name = "LaminarFamiliesMaximalBinaryTrees"
 git = "https://github.com/SmaniaD/LaminarFamiliesMaximalBinaryTrees.git"
-rev = "main"
+rev = "v0.1.0"
 
 [[require]]
 name = "Burkholder"
 git = "https://github.com/SmaniaD/Burkholder.git"
-rev = "main"
+rev = "v0.1.0"
 
 [[require]]
 name = "UnconditionalSchauderBasis"
 git = "https://github.com/SmaniaD/UnconditionalSchauderBasis.git"
-rev = "main"
+rev = "v0.1.0"
 
 [[lean_lib]]
 name = "UnbalancedHaarWavelet"
