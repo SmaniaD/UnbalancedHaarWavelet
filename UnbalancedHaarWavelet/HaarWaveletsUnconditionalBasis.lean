@@ -28,6 +28,39 @@ namespace UnbalancedHaarWavelet
 
 open UnconditionalCriterion
 
+/-- Coercing a real-valued `Lp` function to `ℂ` preserves its `Lp` norm. -/
+lemma norm_toLp_ofReal_complex_eq
+    {α : Type*} [MeasurableSpace α] {μ : MeasureTheory.Measure α}
+    {p : ENNReal} [Fact (1 ≤ p)]
+    {f : α → ℝ} (hf : MeasureTheory.MemLp f p μ) :
+    ‖(hf.ofReal (K := ℂ)).toLp (fun x => (f x : ℂ))‖ = ‖hf.toLp f‖ := by
+  rw [MeasureTheory.Lp.norm_toLp, MeasureTheory.Lp.norm_toLp]
+  congr 1
+  exact MeasureTheory.eLpNorm_congr_norm_ae <| Filter.Eventually.of_forall fun x => by
+    simp
+
+/-- The real part projection is contractive on `Lp ℂ`. -/
+lemma norm_toLp_re_le_complex
+    {α : Type*} [MeasurableSpace α] {μ : MeasureTheory.Measure α}
+    {p : ENNReal} [Fact (1 ≤ p)]
+    {f : α → ℂ} (hf : MeasureTheory.MemLp f p μ) :
+    ‖hf.re.toLp (fun x => (f x).re)‖ ≤ ‖hf.toLp f‖ := by
+  rw [MeasureTheory.Lp.norm_toLp, MeasureTheory.Lp.norm_toLp]
+  exact ENNReal.toReal_mono hf.eLpNorm_ne_top
+    (MeasureTheory.eLpNorm_mono fun x => by
+      simpa [Complex.normSq_eq_norm_sq] using Complex.abs_re_le_norm (f x))
+
+/-- The imaginary part projection is contractive on `Lp ℂ`. -/
+lemma norm_toLp_im_le_complex
+    {α : Type*} [MeasurableSpace α] {μ : MeasureTheory.Measure α}
+    {p : ENNReal} [Fact (1 ≤ p)]
+    {f : α → ℂ} (hf : MeasureTheory.MemLp f p μ) :
+    ‖hf.im.toLp (fun x => (f x).im)‖ ≤ ‖hf.toLp f‖ := by
+  rw [MeasureTheory.Lp.norm_toLp, MeasureTheory.Lp.norm_toLp]
+  exact ENNReal.toReal_mono hf.eLpNorm_ne_top
+    (MeasureTheory.eLpNorm_mono fun x => by
+      simpa [Complex.normSq_eq_norm_sq] using Complex.abs_im_le_norm (f x))
+
 /--
 Core finite-sum estimate for the full Haar family.
 
@@ -312,6 +345,240 @@ theorem FullHaarSystem.hasFiniteSignBound_of_memLp
       rw [hnorm_plain]
 
 /--
+Complex finite-sign control for the complexified full Haar family.
+
+The intended proof splits complex coefficients into real and imaginary parts,
+applies `FullHaarSystem.hasFiniteSignBound_of_memLp` to both real families, and
+uses the contractive real/imaginary projections on `Lp ℂ`. This gives the
+constant `2 * (Burkholder.pStar p.toReal - 1)`.
+-/
+theorem FullHaarSystem.hasFiniteSignBound_complex_of_memLp
+    {α : Type*} [MeasurableSpace α]
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (F : FullHaarSystem (G := G))
+    (p : ENNReal) [Fact (1 ≤ p)]
+    (hp_one : 1 < p) (hfin : p ≠ ⊤)
+    (hC : 0 ≤ Burkholder.pStar p.toReal - 1)
+    (e : ℕ ≃ F.Index)
+  (hmem : ∀ i : F.Index, MeasureTheory.MemLp (F.function G i) p G.μ) :
+    HasFiniteSignBound (𝕜 := ℂ)
+      (fun n => ((hmem (e n)).ofReal (K := ℂ)).toLp
+        (fun x => (F.function G (e n) x : ℂ)))
+      (2 * (Burkholder.pStar p.toReal - 1)) := by
+  classical
+  intro s a ε hε
+  let C0 : ℝ := Burkholder.pStar p.toReal - 1
+  let xR : ℕ → FullHaarLpSpace G p :=
+    fun n => (hmem (e n)).toLp (F.function G (e n))
+  let xC : ℕ → FullHaarLpSpaceComplex G p :=
+    fun n => ((hmem (e n)).ofReal (K := ℂ)).toLp
+      (fun x => (F.function G (e n) x : ℂ))
+  let εR : ℕ → ℝ := fun n => (ε n).re
+  have hεR : ∀ n ∈ s, εR n = 1 ∨ εR n = -1 := by
+    intro n hn
+    rcases hε n hn with h | h
+    · left
+      simp [εR, h]
+    · right
+      simp [εR, h]
+  have hε_im_zero : ∀ n ∈ s, (ε n).im = 0 := by
+    intro n hn
+    rcases hε n hn with h | h <;> simp [h]
+  let plainCFun : α → ℂ := fun y => ∑ n ∈ s, a n * (F.function G (e n) y : ℂ)
+  let signCFun : α → ℂ := fun y => ∑ n ∈ s, (ε n * a n) * (F.function G (e n) y : ℂ)
+  let plainReFun : α → ℝ := fun y => ∑ n ∈ s, (a n).re * F.function G (e n) y
+  let plainImFun : α → ℝ := fun y => ∑ n ∈ s, (a n).im * F.function G (e n) y
+  let signReFun : α → ℝ := fun y => ∑ n ∈ s, (εR n * (a n).re) * F.function G (e n) y
+  let signImFun : α → ℝ := fun y => ∑ n ∈ s, (εR n * (a n).im) * F.function G (e n) y
+  have hplainC_mem : MeasureTheory.MemLp plainCFun p G.μ := by
+    dsimp [plainCFun]
+    exact MeasureTheory.memLp_finsetSum s
+      (fun n _ => ((hmem (e n)).ofReal (K := ℂ)).const_smul (a n))
+  have hsignC_mem : MeasureTheory.MemLp signCFun p G.μ := by
+    dsimp [signCFun]
+    exact MeasureTheory.memLp_finsetSum s
+      (fun n _ => ((hmem (e n)).ofReal (K := ℂ)).const_smul (ε n * a n))
+  have hplainRe_mem : MeasureTheory.MemLp plainReFun p G.μ := by
+    dsimp [plainReFun]
+    exact MeasureTheory.memLp_finsetSum s
+      (fun n _ => (hmem (e n)).const_smul ((a n).re))
+  have hplainIm_mem : MeasureTheory.MemLp plainImFun p G.μ := by
+    dsimp [plainImFun]
+    exact MeasureTheory.memLp_finsetSum s
+      (fun n _ => (hmem (e n)).const_smul ((a n).im))
+  have hsignRe_mem : MeasureTheory.MemLp signReFun p G.μ := by
+    dsimp [signReFun]
+    exact MeasureTheory.memLp_finsetSum s
+      (fun n _ => (hmem (e n)).const_smul (εR n * (a n).re))
+  have hsignIm_mem : MeasureTheory.MemLp signImFun p G.μ := by
+    dsimp [signImFun]
+    exact MeasureTheory.memLp_finsetSum s
+      (fun n _ => (hmem (e n)).const_smul (εR n * (a n).im))
+  have hsign_real :
+      HasFiniteSignBound (𝕜 := ℝ) xR C0 := by
+    simpa [xR, C0] using
+      FullHaarSystem.hasFiniteSignBound_of_memLp G F p hp_one hfin hC e hmem
+  have hre_bound :
+      ‖∑ n ∈ s, (εR n * (a n).re) • xR n‖
+        ≤ C0 * ‖∑ n ∈ s, (a n).re • xR n‖ :=
+    hsign_real s (fun n => (a n).re) εR hεR
+  have him_bound :
+      ‖∑ n ∈ s, (εR n * (a n).im) • xR n‖
+        ≤ C0 * ‖∑ n ∈ s, (a n).im • xR n‖ :=
+    hsign_real s (fun n => (a n).im) εR hεR
+  have hsignC_sum :
+      ∑ n ∈ s, (ε n * a n) • xC n = hsignC_mem.toLp signCFun := by
+    rw [toLp_finsetSum_const_smul_complex p s
+      (fun n => fun y => (F.function G (e n) y : ℂ))
+      (fun n => (hmem (e n)).ofReal (K := ℂ)) (fun n => ε n * a n)]
+  have hplainC_sum :
+      ∑ n ∈ s, a n • xC n = hplainC_mem.toLp plainCFun := by
+    rw [toLp_finsetSum_const_smul_complex p s
+      (fun n => fun y => (F.function G (e n) y : ℂ))
+      (fun n => (hmem (e n)).ofReal (K := ℂ)) a]
+  have hsignRe_sum :
+      ∑ n ∈ s, (εR n * (a n).re) • xR n = hsignRe_mem.toLp signReFun := by
+    rw [toLp_finsetSum_const_smul p s (fun n => F.function G (e n))
+      (fun n => hmem (e n)) (fun n => εR n * (a n).re)]
+  have hsignIm_sum :
+      ∑ n ∈ s, (εR n * (a n).im) • xR n = hsignIm_mem.toLp signImFun := by
+    rw [toLp_finsetSum_const_smul p s (fun n => F.function G (e n))
+      (fun n => hmem (e n)) (fun n => εR n * (a n).im)]
+  have hplainRe_sum :
+      ∑ n ∈ s, (a n).re • xR n = hplainRe_mem.toLp plainReFun := by
+    rw [toLp_finsetSum_const_smul p s (fun n => F.function G (e n))
+      (fun n => hmem (e n)) (fun n => (a n).re)]
+  have hplainIm_sum :
+      ∑ n ∈ s, (a n).im • xR n = hplainIm_mem.toLp plainImFun := by
+    rw [toLp_finsetSum_const_smul p s (fun n => F.function G (e n))
+      (fun n => hmem (e n)) (fun n => (a n).im)]
+  have hsign_re_fun : (fun y => (signCFun y).re) = signReFun := by
+    funext y
+    change Complex.reAddGroupHom (∑ n ∈ s, (ε n * a n) * (F.function G (e n) y : ℂ)) =
+      ∑ n ∈ s, (εR n * (a n).re) * F.function G (e n) y
+    rw [map_sum]
+    apply Finset.sum_congr rfl
+    intro n hn
+    have hεim : (ε n).im = 0 := hε_im_zero n hn
+    simp [εR, hεim, Complex.mul_re, mul_assoc, mul_comm]
+  have hsign_im_fun : (fun y => (signCFun y).im) = signImFun := by
+    funext y
+    change Complex.imAddGroupHom (∑ n ∈ s, (ε n * a n) * (F.function G (e n) y : ℂ)) =
+      ∑ n ∈ s, (εR n * (a n).im) * F.function G (e n) y
+    rw [map_sum]
+    apply Finset.sum_congr rfl
+    intro n hn
+    have hεim : (ε n).im = 0 := hε_im_zero n hn
+    simp [εR, hεim, Complex.mul_re, Complex.mul_im, mul_assoc, mul_comm]
+  have hplain_re_fun : (fun y => (plainCFun y).re) = plainReFun := by
+    funext y
+    change Complex.reAddGroupHom (∑ n ∈ s, a n * (F.function G (e n) y : ℂ)) =
+      ∑ n ∈ s, (a n).re * F.function G (e n) y
+    rw [map_sum]
+    apply Finset.sum_congr rfl
+    intro n hn
+    simp [Complex.mul_re]
+  have hplain_im_fun : (fun y => (plainCFun y).im) = plainImFun := by
+    funext y
+    change Complex.imAddGroupHom (∑ n ∈ s, a n * (F.function G (e n) y : ℂ)) =
+      ∑ n ∈ s, (a n).im * F.function G (e n) y
+    rw [map_sum]
+    apply Finset.sum_congr rfl
+    intro n hn
+    simp [Complex.mul_im]
+  have hsign_re_norm :
+      ‖hsignC_mem.re.toLp (fun y => (signCFun y).re)‖ =
+        ‖∑ n ∈ s, (εR n * (a n).re) • xR n‖ := by
+    rw [hsignRe_sum]
+    apply congrArg norm
+    exact MeasureTheory.MemLp.toLp_congr hsignC_mem.re hsignRe_mem
+      (Filter.Eventually.of_forall (fun y => congrFun hsign_re_fun y))
+  have hsign_im_norm :
+      ‖hsignC_mem.im.toLp (fun y => (signCFun y).im)‖ =
+        ‖∑ n ∈ s, (εR n * (a n).im) • xR n‖ := by
+    rw [hsignIm_sum]
+    apply congrArg norm
+    exact MeasureTheory.MemLp.toLp_congr hsignC_mem.im hsignIm_mem
+      (Filter.Eventually.of_forall (fun y => congrFun hsign_im_fun y))
+  have hplain_re_norm :
+      ‖∑ n ∈ s, (a n).re • xR n‖ ≤ ‖∑ n ∈ s, a n • xC n‖ := by
+    rw [hplainRe_sum, hplainC_sum]
+    calc
+      ‖hplainRe_mem.toLp plainReFun‖
+          = ‖hplainC_mem.re.toLp (fun y => (plainCFun y).re)‖ := by
+              apply congrArg norm
+              exact (MeasureTheory.MemLp.toLp_congr hplainC_mem.re hplainRe_mem
+                (Filter.Eventually.of_forall (fun y => congrFun hplain_re_fun y))).symm
+      _ ≤ ‖hplainC_mem.toLp plainCFun‖ := norm_toLp_re_le_complex hplainC_mem
+  have hplain_im_norm :
+      ‖∑ n ∈ s, (a n).im • xR n‖ ≤ ‖∑ n ∈ s, a n • xC n‖ := by
+    rw [hplainIm_sum, hplainC_sum]
+    calc
+      ‖hplainIm_mem.toLp plainImFun‖
+          = ‖hplainC_mem.im.toLp (fun y => (plainCFun y).im)‖ := by
+              apply congrArg norm
+              exact (MeasureTheory.MemLp.toLp_congr hplainC_mem.im hplainIm_mem
+                (Filter.Eventually.of_forall (fun y => congrFun hplain_im_fun y))).symm
+      _ ≤ ‖hplainC_mem.toLp plainCFun‖ := norm_toLp_im_le_complex hplainC_mem
+  have hdecomp :
+      hsignC_mem.toLp signCFun =
+        ((hsignC_mem.re).ofReal (K := ℂ)).toLp (fun y => ((signCFun y).re : ℂ))
+          + (Complex.I : ℂ) •
+            ((hsignC_mem.im).ofReal (K := ℂ)).toLp (fun y => ((signCFun y).im : ℂ)) := by
+    let hreC := (hsignC_mem.re).ofReal (K := ℂ)
+    let himC := (hsignC_mem.im).ofReal (K := ℂ)
+    calc
+      hsignC_mem.toLp signCFun
+          = (hreC.add (himC.const_smul (Complex.I : ℂ))).toLp
+              (fun y => ((signCFun y).re : ℂ) + (Complex.I : ℂ) * ((signCFun y).im : ℂ)) := by
+              apply MeasureTheory.MemLp.toLp_congr
+              exact Filter.Eventually.of_forall (fun y => by
+                rw [Complex.ext_iff]
+                simp)
+      _ = hreC.toLp (fun y => ((signCFun y).re : ℂ))
+            + (himC.const_smul (Complex.I : ℂ)).toLp
+                ((Complex.I : ℂ) • fun y => ((signCFun y).im : ℂ)) := by
+              exact MeasureTheory.MemLp.toLp_add _ _
+      _ = hreC.toLp (fun y => ((signCFun y).re : ℂ))
+            + (Complex.I : ℂ) • himC.toLp (fun y => ((signCFun y).im : ℂ)) := by
+              rw [MeasureTheory.MemLp.toLp_const_smul]
+  have hsign_le_components :
+      ‖∑ n ∈ s, (ε n * a n) • xC n‖
+        ≤ ‖∑ n ∈ s, (εR n * (a n).re) • xR n‖
+          + ‖∑ n ∈ s, (εR n * (a n).im) • xR n‖ := by
+    rw [hsignC_sum, hdecomp]
+    calc
+      ‖((hsignC_mem.re).ofReal (K := ℂ)).toLp (fun y => ((signCFun y).re : ℂ))
+          + (Complex.I : ℂ) •
+            ((hsignC_mem.im).ofReal (K := ℂ)).toLp (fun y => ((signCFun y).im : ℂ))‖
+          ≤ ‖((hsignC_mem.re).ofReal (K := ℂ)).toLp (fun y => ((signCFun y).re : ℂ))‖
+              + ‖(Complex.I : ℂ) •
+                ((hsignC_mem.im).ofReal (K := ℂ)).toLp (fun y => ((signCFun y).im : ℂ))‖ :=
+            norm_add_le _ _
+      _ = ‖hsignC_mem.re.toLp (fun y => (signCFun y).re)‖
+              + ‖hsignC_mem.im.toLp (fun y => (signCFun y).im)‖ := by
+            rw [norm_smul, Complex.norm_I, one_mul]
+            exact congrArg₂ (fun x y => x + y)
+              (norm_toLp_ofReal_complex_eq (hf := hsignC_mem.re))
+              (norm_toLp_ofReal_complex_eq (hf := hsignC_mem.im))
+      _ = ‖∑ n ∈ s, (εR n * (a n).re) • xR n‖
+              + ‖∑ n ∈ s, (εR n * (a n).im) • xR n‖ := by
+            rw [hsign_re_norm, hsign_im_norm]
+  calc
+    ‖∑ n ∈ s, (ε n * a n) • xC n‖
+        ≤ ‖∑ n ∈ s, (εR n * (a n).re) • xR n‖
+          + ‖∑ n ∈ s, (εR n * (a n).im) • xR n‖ := hsign_le_components
+    _ ≤ C0 * ‖∑ n ∈ s, (a n).re • xR n‖
+          + C0 * ‖∑ n ∈ s, (a n).im • xR n‖ :=
+        add_le_add hre_bound him_bound
+    _ ≤ C0 * ‖∑ n ∈ s, a n • xC n‖
+          + C0 * ‖∑ n ∈ s, a n • xC n‖ :=
+        add_le_add
+          (mul_le_mul_of_nonneg_left hplain_re_norm hC)
+          (mul_le_mul_of_nonneg_left hplain_im_norm hC)
+    _ = 2 * C0 * ‖∑ n ∈ s, a n • xC n‖ := by ring
+
+/--
 Shows each full Haar function is in `Lp`.
 
 `alpha` is a normalized constant function, and a wavelet is a difference of two
@@ -428,6 +695,33 @@ theorem FullHaarSystem.toLp_function_ne_zero
         simpa [FullHaarSystem.function] using
           HaarSystem.integral_wavelet_mul_self_ne_zero G F.toHaarSystem j
       exact hself_ne hintegral_zero
+
+/--
+The complex `Lp` class of a full Haar function, obtained by coercing the
+real-valued function to `ℂ`, is never zero.
+-/
+theorem FullHaarSystem.toLp_function_complex_ne_zero
+    {α : Type*} [MeasurableSpace α]
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (F : FullHaarSystem (G := G))
+    (p : ENNReal) [Fact (1 ≤ p)]
+    (hmem : ∀ i : F.Index, MeasureTheory.MemLp (F.function G i) p G.μ)
+    (i : F.Index) :
+    ((hmem i).ofReal (K := ℂ)).toLp (fun x => (F.function G i x : ℂ)) ≠ 0 := by
+  intro hzero
+  have h_ae_zero_complex :
+      (fun x => (F.function G i x : ℂ)) =ᵐ[G.μ] 0 := by
+    refine (MeasureTheory.MemLp.coeFn_toLp ((hmem i).ofReal (K := ℂ))).symm.trans ?_
+    simpa [hzero] using (MeasureTheory.Lp.coeFn_zero (E := ℂ) (p := p) (μ := G.μ))
+  have h_ae_zero_real : F.function G i =ᵐ[G.μ] 0 := by
+    filter_upwards [h_ae_zero_complex] with x hx
+    exact Complex.ofReal_eq_zero.mp hx
+  have hzero_real : (hmem i).toLp (F.function G i) = 0 := by
+    have hzero_mem : MeasureTheory.MemLp (0 : α → ℝ) p G.μ := MeasureTheory.MemLp.zero
+    have htoLp_eq : (hmem i).toLp (F.function G i) = hzero_mem.toLp 0 := by
+      exact MeasureTheory.MemLp.toLp_congr (hmem i) hzero_mem h_ae_zero_real
+    simpa using htoLp_eq
+  exact FullHaarSystem.toLp_function_ne_zero G F p hmem i hzero_real
 
 /--
 Packages a Haar index as explicit level/cell/branch data.
@@ -594,6 +888,26 @@ theorem exists_fullHaarSystem_unconditionalSchauderBasis_of_finiteSignBound
     UnconditionalCriterion.exists_unconditionalSchauderBasis_of_finiteSignBound
       x hx_dense hx_ne C hC h_sign
 
+/-- Complex-valued version of the generic final step. -/
+theorem exists_fullHaarSystem_unconditionalSchauderBasis_of_finiteSignBound_Complex
+  {α : Type*} [MeasurableSpace α]
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (F : FullHaarSystem (G := G))
+    (p : ENNReal)
+  [Fact (1 ≤ p)]
+    (e : ℕ ≃ F.Index)
+    (x : ℕ → FullHaarLpSpaceComplex G p)
+    (hx_dense : HasDenseSpan (𝕜 := ℂ) x)
+    (hx_ne : ∀ n, x n ≠ 0)
+    (C : ℝ)
+    (hC : 0 ≤ C)
+    (h_sign : HasFiniteSignBound (𝕜 := ℂ) x C) :
+    ∃ b : UnconditionalSchauderBasis ℂ (FullHaarLpSpaceComplex G p), b.basis = x := by
+  let _ := e
+  exact
+    UnconditionalCriterion.exists_unconditionalSchauderBasis_of_finiteSignBound
+      x hx_dense hx_ne C hC h_sign
+
 /--
     Final result proving that the full Haar system can be rearranged into an unconditional Schauder basis
     for `Lp` when `1 < p < ∞`.
@@ -605,7 +919,7 @@ theorem exists_fullHaarSystem_unconditionalSchauderBasis_of_finiteSignBound
     4. Use density of the Haar span.
     5. Apply the generic criterion above.
 -/
-theorem exists_fullHaarSystem_unconditionalSchauderBasis_of_BurkholderSignBound
+theorem exists_fullHaarSystem_unconditionalSchauderBasis_of_BurkholderSignBound_Real
   {α : Type*} [MeasurableSpace α]
     (G : Grid (α := α)) [DecidableEq (Set α)]
     (F : FullHaarSystem (G := G))
@@ -627,8 +941,7 @@ theorem exists_fullHaarSystem_unconditionalSchauderBasis_of_BurkholderSignBound
       calc
         1 ≤ p.toReal := le_of_lt hp_one_real
         _ ≤ Burkholder.pStar p.toReal := by
-          simpa [Burkholder.pStar, Majorants.pStar, Burkholder.q] using
-            (le_max_left p.toReal (Burkholder.q p.toReal))
+          simp [Burkholder.pStar, Majorants.pStar]
     linarith
   let x : ℕ → FullHaarLpSpace G p := fun n => (hmem (e n)).toLp (F.function G (e n))
   have hx_ne : ∀ n, x n ≠ 0 := by
@@ -652,6 +965,60 @@ theorem exists_fullHaarSystem_unconditionalSchauderBasis_of_BurkholderSignBound
   rcases
     (exists_fullHaarSystem_unconditionalSchauderBasis_of_finiteSignBound
       G F p e x hx_dense hx_ne (Burkholder.pStar p.toReal - 1) hC h_sign) with ⟨b, hb⟩
+  exact ⟨e, b, hb⟩
+
+theorem exists_fullHaarSystem_unconditionalSchauderBasis_of_BurkholderSignBound_Complex
+  {α : Type*} [MeasurableSpace α]
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (F : FullHaarSystem (G := G))
+    (p : ENNReal)
+  [Fact (1 ≤ p)]
+    (hp_one : 1 < p)
+    (hp_top : p < ⊤) :
+    ∃ (e : ℕ ≃ F.Index) (b : UnconditionalSchauderBasis ℂ (FullHaarLpSpaceComplex G p)),
+      b.basis = (fun n =>
+        ((FullHaarSystem.memLp_function G F p (e n)).ofReal (K := ℂ)).toLp
+          (fun x => (F.function G (e n) x : ℂ))) := by
+  let e : ℕ ≃ F.Index := FullHaarSystem.indexEquivNat G F
+  let hmem : ∀ i : F.Index, MeasureTheory.MemLp (F.function G i) p G.μ :=
+    FullHaarSystem.memLp_function G F p
+  have hfin : p ≠ ⊤ := ne_of_lt hp_top
+  have hp_one_real : 1 < p.toReal := by
+    exact (ENNReal.toReal_lt_toReal (by simp) hfin).2 hp_one
+  have hC0 : 0 ≤ Burkholder.pStar p.toReal - 1 := by
+    have hpstar_ge_one : 1 ≤ Burkholder.pStar p.toReal := by
+      calc
+        1 ≤ p.toReal := le_of_lt hp_one_real
+        _ ≤ Burkholder.pStar p.toReal := by
+          simp [Burkholder.pStar, Majorants.pStar]
+    linarith
+  let C : ℝ := 2 * (Burkholder.pStar p.toReal - 1)
+  have hC : 0 ≤ C := by
+    dsimp [C]
+    nlinarith
+  let x : ℕ → FullHaarLpSpaceComplex G p :=
+    fun n => ((hmem (e n)).ofReal (K := ℂ)).toLp
+      (fun y => (F.function G (e n) y : ℂ))
+  have hx_ne : ∀ n, x n ≠ 0 := by
+    intro n
+    simpa [x] using FullHaarSystem.toLp_function_complex_ne_zero G F p hmem (e n)
+  have hrange : Set.range x = Set.range (fullHaarLpFamilyComplex G F p hmem) := by
+    ext y
+    constructor
+    · rintro ⟨n, rfl⟩
+      exact ⟨e n, rfl⟩
+    · rintro ⟨i, rfl⟩
+      exact ⟨e.symm i, by simp [x, fullHaarLpFamilyComplex]⟩
+  have hx_dense : HasDenseSpan (𝕜 := ℂ) x := by
+    rw [HasDenseSpan]
+    simpa [x, hrange] using
+      (dense_iff_closure_eq.mp (fullHaarFamilyComplex_dense G F p hfin hmem))
+  have h_sign : HasFiniteSignBound (𝕜 := ℂ) x C := by
+    simpa [x, C] using
+      FullHaarSystem.hasFiniteSignBound_complex_of_memLp G F p hp_one hfin hC0 e hmem
+  rcases
+    (exists_fullHaarSystem_unconditionalSchauderBasis_of_finiteSignBound_Complex
+      G F p e x hx_dense hx_ne C hC h_sign) with ⟨b, hb⟩
   exact ⟨e, b, hb⟩
 
 end UnbalancedHaarWavelet

@@ -36,6 +36,12 @@ abbrev FullHaarLpSpace
     (G : Grid (α := α)) (p : ENNReal) : Type _ :=
   MeasureTheory.Lp ℝ p G.μ
 
+/-- The complex-valued `Lp` space over the grid measure. -/
+abbrev FullHaarLpSpaceComplex
+    {α : Type*} [MeasurableSpace α]
+    (G : Grid (α := α)) (p : ENNReal) : Type _ :=
+  MeasureTheory.Lp ℂ p G.μ
+
 /-- The full Haar family viewed as vectors in `Lp`. -/
 abbrev fullHaarLpFamily
     {α : Type*} [MeasurableSpace α]
@@ -44,6 +50,24 @@ abbrev fullHaarLpFamily
     (hmem : ∀ i, MeasureTheory.MemLp (F.function G i) p G.μ) :
     F.Index → FullHaarLpSpace G p :=
   fun i => (hmem i).toLp (F.function G i)
+
+/-- The full Haar family viewed as complex-valued vectors in `Lp`. -/
+abbrev fullHaarLpFamilyComplex
+    {α : Type*} [MeasurableSpace α]
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (F : FullHaarSystem (G := G)) (p : ENNReal)
+    (hmem : ∀ i, MeasureTheory.MemLp (F.function G i) p G.μ) :
+    F.Index → FullHaarLpSpaceComplex G p :=
+  fun i => ((hmem i).ofReal (K := ℂ)).toLp (fun x => (F.function G i x : ℂ))
+
+/-- Closed complex linear span of the full Haar family in complex-valued `Lp`. -/
+abbrev fullHaarClosedSpanComplex
+    {α : Type*} [MeasurableSpace α]
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+  (F : FullHaarSystem (G := G)) (p : ENNReal) [Fact (1 ≤ p)]
+    (hmem : ∀ i, MeasureTheory.MemLp (F.function G i) p G.μ) :
+    Submodule ℂ (FullHaarLpSpaceComplex G p) :=
+  (Submodule.span ℂ (Set.range (fullHaarLpFamilyComplex G F p hmem))).topologicalClosure
 
 /-- Closed linear span of the full Haar family in `Lp`. -/
 abbrev fullHaarClosedSpan
@@ -63,6 +87,43 @@ theorem toLp_finsetSum_const_smul
     {μ : MeasureTheory.Measure α} (p : ENNReal)
     (s : Finset ι) (f : ι → α → ℝ)
     (hf : ∀ i, MeasureTheory.MemLp (f i) p μ) (a : ι → ℝ) :
+    ∑ i ∈ s, a i • (hf i).toLp (f i)
+      =
+    ((MeasureTheory.memLp_finsetSum s (fun i _ => (hf i).const_smul (a i)))).toLp
+      (fun x => ∑ i ∈ s, a i * f i x) := by
+  induction s using Finset.induction_on with
+  | empty =>
+      symm
+      exact MeasureTheory.MemLp.toLp_zero _
+  | insert i s hi ih =>
+      have hs_mem : MeasureTheory.MemLp (fun x => ∑ j ∈ s, a j * f j x) p μ :=
+        MeasureTheory.memLp_finsetSum s (fun j _ => (hf j).const_smul (a j))
+      calc
+        ∑ j ∈ insert i s, a j • (hf j).toLp (f j)
+            = a i • (hf i).toLp (f i) + ∑ j ∈ s, a j • (hf j).toLp (f j) := by
+                simp [Finset.sum_insert, hi]
+        _ = ((hf i).const_smul (a i)).toLp (a i • f i)
+              + hs_mem.toLp (fun x => ∑ j ∈ s, a j * f j x) := by
+                rw [ih, ← MeasureTheory.MemLp.toLp_const_smul]
+        _ = (((hf i).const_smul (a i)).add hs_mem).toLp
+              (fun x => (a i • f i) x + ∑ j ∈ s, a j * f j x) := by
+                symm
+                exact MeasureTheory.MemLp.toLp_add _ _
+        _ = ((MeasureTheory.memLp_finsetSum (insert i s)
+              (fun j _ => (hf j).const_smul (a j)))).toLp
+              (fun x => ∑ j ∈ insert i s, a j * f j x) := by
+          apply MeasureTheory.MemLp.toLp_congr
+          exact Filter.Eventually.of_forall (fun x => by
+            simp [Finset.sum_insert, hi, smul_eq_mul])
+
+/--
+Complex-valued version of `toLp_finsetSum_const_smul`.
+-/
+theorem toLp_finsetSum_const_smul_complex
+    {α ι : Type*} [MeasurableSpace α] [DecidableEq ι]
+    {μ : MeasureTheory.Measure α} (p : ENNReal)
+    (s : Finset ι) (f : ι → α → ℂ)
+    (hf : ∀ i, MeasureTheory.MemLp (f i) p μ) (a : ι → ℂ) :
     ∑ i ∈ s, a i • (hf i).toLp (f i)
       =
     ((MeasureTheory.memLp_finsetSum s (fun i _ => (hf i).const_smul (a i)))).toLp
@@ -145,6 +206,68 @@ theorem mem_fullHaarClosedSpan_of_mem_function_span
     simpa [hsum_eq] using hsum_mem
   exact (Submodule.le_topologicalClosure T) this
 
+/--
+Complex-valued analogue of `mem_fullHaarClosedSpan_of_mem_function_span` for
+real Haar linear combinations embedded in `ℂ`.
+-/
+theorem mem_fullHaarClosedSpanComplex_of_mem_function_span
+    {α : Type*} [MeasurableSpace α]
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+  (F : FullHaarSystem (G := G))
+  (p : ENNReal) [Fact (1 ≤ p)]
+    (hmem : ∀ i, MeasureTheory.MemLp (F.function G i) p G.μ)
+    {f : α → ℝ} (hf : MeasureTheory.MemLp (fun x => (f x : ℂ)) p G.μ)
+    (hspan : f ∈ Submodule.span ℝ (Set.range (FullHaarSystem.function G F))) :
+    hf.toLp (fun x => (f x : ℂ)) ∈ fullHaarClosedSpanComplex G F p hmem := by
+  classical
+  let T : Submodule ℂ (FullHaarLpSpaceComplex G p) :=
+    Submodule.span ℂ (Set.range (fullHaarLpFamilyComplex G F p hmem))
+  rcases (Submodule.mem_span_iff_exists_finset_subset).mp hspan with ⟨a, s, hs, -, hrepr⟩
+  have hs_mem : ∀ g ∈ s, MeasureTheory.MemLp (fun x => (g x : ℂ)) p G.μ := by
+    intro g hg
+    rcases hs hg with ⟨i, rfl⟩
+    exact (hmem i).ofReal (K := ℂ)
+  have hsum_mem :
+      ((MeasureTheory.memLp_finsetSum s.attach
+        (fun g _ => (hs_mem g.1 g.2).const_smul ((a g.1 : ℂ))))).toLp
+          (fun x => ∑ g ∈ s.attach, (a g.1 : ℂ) * (g.1 x : ℂ)) ∈ T := by
+    rw [← toLp_finsetSum_const_smul_complex p s.attach (fun g : s => fun x => (g.1 x : ℂ))
+      (fun g => hs_mem g.1 g.2) (fun g : s => (a g.1 : ℂ))]
+    refine Submodule.sum_mem T ?_
+    intro g hg
+    refine T.smul_mem _ ?_
+    rcases hs g.2 with ⟨i, hi⟩
+    have htoLp :
+        (hs_mem g.1 g.2).toLp (fun x => (g.1 x : ℂ))
+          = ((hmem i).ofReal (K := ℂ)).toLp
+              (fun x => (FullHaarSystem.function G F i x : ℂ)) := by
+      apply MeasureTheory.MemLp.toLp_congr
+      exact Filter.Eventually.of_forall (fun x => by simp [congrFun hi.symm x])
+    rw [htoLp]
+    exact Submodule.subset_span ⟨i, rfl⟩
+  have hrepr' :
+      (fun x => ∑ g ∈ s.attach, (a g.1 : ℂ) * (g.1 x : ℂ))
+        = fun x => (f x : ℂ) := by
+    ext x
+    calc
+      ∑ g ∈ s.attach, (a g.1 : ℂ) * (g.1 x : ℂ)
+          = ∑ g ∈ s, (a g : ℂ) * (g x : ℂ) := by
+              simpa using Finset.sum_attach s (fun g => (a g : ℂ) * (g x : ℂ))
+      _ = ↑(∑ g ∈ s, a g * g x) := by
+              simp
+      _ = (f x : ℂ) := by
+              simpa [Pi.smul_apply, smul_eq_mul] using congrArg (fun r : ℝ => (r : ℂ)) (congrFun hrepr x)
+  have hsum_eq :
+      ((MeasureTheory.memLp_finsetSum s.attach
+        (fun g _ => (hs_mem g.1 g.2).const_smul ((a g.1 : ℂ))))).toLp
+          (fun x => ∑ g ∈ s.attach, (a g.1 : ℂ) * (g.1 x : ℂ))
+        = hf.toLp (fun x => (f x : ℂ)) := by
+    apply MeasureTheory.MemLp.toLp_congr
+    exact Filter.Eventually.of_forall (fun x => congrFun hrepr' x)
+  have : hf.toLp (fun x => (f x : ℂ)) ∈ T := by
+    simpa [hsum_eq] using hsum_mem
+  exact (Submodule.le_topologicalClosure T) this
+
 /-- The set of all partition cells across all levels of the grid. -/
 def gridGeneratingSets
     {α : Type*} [MeasurableSpace α]
@@ -201,11 +324,52 @@ lemma indicatorConstLp_eq_smul_indicatorConstLp_one
   · simp [hx1, hxs]
   · simp [hx1, hxs]
 
+/-- Complex version: pulls out a scalar from `indicatorConstLp` in `Lp ℂ`. -/
+lemma indicatorConstLp_complex_eq_smul_indicatorConstLp_one
+    {α : Type*} [MeasurableSpace α]
+    {μ : MeasureTheory.Measure α} {p : ENNReal} {s : Set α}
+    (hs : MeasurableSet s) (hμs : μ s ≠ ∞) (c : ℂ) :
+    MeasureTheory.indicatorConstLp (μ := μ) p hs hμs c
+      = c • MeasureTheory.indicatorConstLp (μ := μ) p hs hμs (1 : ℂ) := by
+  ext1
+  refine MeasureTheory.indicatorConstLp_coeFn.trans ?_
+  have h_smul :=
+    MeasureTheory.Lp.coeFn_smul c (MeasureTheory.indicatorConstLp (μ := μ) p hs hμs (1 : ℂ))
+  refine Filter.EventuallyEq.trans ?_ h_smul.symm
+  refine (@MeasureTheory.indicatorConstLp_coeFn _ _ _ p μ _ s hs hμs (1 : ℂ)).mono ?_
+  intro x hx1
+  by_cases hxs : x ∈ s
+  · simp [hx1, hxs]
+  · simp [hx1, hxs]
+
 /-- Indicator of a complement is indicator of universe minus indicator of the set. -/
 lemma indicatorConstLp_compl_eq_sub
     {α : Type*} [MeasurableSpace α]
     {μ : MeasureTheory.Measure α} [MeasureTheory.IsFiniteMeasure μ] {p : ENNReal}
     {s : Set α} (hs : MeasurableSet s) (hμs : μ s ≠ ∞) (c : ℝ) :
+    MeasureTheory.indicatorConstLp (μ := μ) p hs.compl (by finiteness) c
+      = MeasureTheory.indicatorConstLp (μ := μ) p MeasurableSet.univ (by simp) c
+          - MeasureTheory.indicatorConstLp (μ := μ) p hs hμs c := by
+  rw [MeasureTheory.indicatorConstLp_univ (μ := μ) (p := p) (c := c)]
+  ext1
+  refine MeasureTheory.indicatorConstLp_coeFn.trans ?_
+  have h_sub :=
+    MeasureTheory.Lp.coeFn_sub
+      (MeasureTheory.Lp.const p μ c)
+      (MeasureTheory.indicatorConstLp (μ := μ) p hs hμs c)
+  refine Filter.EventuallyEq.trans ?_ h_sub.symm
+  filter_upwards [MeasureTheory.AEEqFun.coeFn_const (α := α) (μ := μ) (b := c),
+    MeasureTheory.indicatorConstLp_coeFn (μ := μ) (p := p) (hs := hs) (hμs := hμs)
+      (c := c)] with x hxu hxs
+  by_cases hmem : x ∈ s
+  · simp [hxu, hxs, hmem]
+  · simp [hxu, hxs, hmem]
+
+/-- Complex version of indicator of a complement as universe minus the set. -/
+lemma indicatorConstLp_complex_compl_eq_sub
+    {α : Type*} [MeasurableSpace α]
+    {μ : MeasureTheory.Measure α} [MeasureTheory.IsFiniteMeasure μ] {p : ENNReal}
+    {s : Set α} (hs : MeasurableSet s) (hμs : μ s ≠ ∞) (c : ℂ) :
     MeasureTheory.indicatorConstLp (μ := μ) p hs.compl (by finiteness) c
       = MeasureTheory.indicatorConstLp (μ := μ) p MeasurableSet.univ (by simp) c
           - MeasureTheory.indicatorConstLp (μ := μ) p hs hμs c := by
@@ -392,6 +556,190 @@ theorem indicatorConstLp_mem_fullHaarClosedSpan
       (isPiSystem_gridGeneratingSets G) hempty hbasic hcompl hiUnion s hs
   simpa [M] using hC c
 
+/--
+Complex-valued density induction step: indicator-constant vectors belong to the
+closed complex span of the full Haar family.
+-/
+theorem indicatorConstLp_mem_fullHaarClosedSpanComplex
+    {α : Type*} [MeasurableSpace α]
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (F : FullHaarSystem (G := G))
+    (p : ENNReal) [Fact (1 ≤ p)]
+    (hp_top : p ≠ ∞)
+    (hmem : ∀ i, MeasureTheory.MemLp (F.function G i) p G.μ)
+    {s : Set α} (hs : MeasurableSet s) (hμs : G.μ s ≠ ∞) (c : ℂ) :
+    MeasureTheory.indicatorConstLp (μ := G.μ) p hs hμs c ∈
+      fullHaarClosedSpanComplex G F p hmem := by
+  classical
+  letI : MeasureTheory.IsFiniteMeasure G.μ := G.isFinite
+  let M : Submodule ℂ (FullHaarLpSpaceComplex G p) := fullHaarClosedSpanComplex G F p hmem
+  let C : ∀ t : Set α, MeasurableSet t → Prop :=
+    fun t ht =>
+      ∀ d : ℂ,
+        MeasureTheory.indicatorConstLp (μ := G.μ) p ht ((MeasureTheory.measure_lt_top G.μ t).ne) d ∈ M
+  have hempty : C ∅ MeasurableSet.empty := by
+    intro d
+    simp [C, M]
+  have hbasic :
+      ∀ t (ht : t ∈ gridGeneratingSets G),
+        C t ((grid_generates_eq_generateFrom_gridGeneratingSets G) ▸
+          MeasurableSpace.GenerateMeasurable.basic t ht) := by
+    intro t ht d
+    rcases Set.mem_iUnion.mp ht with ⟨n, hn⟩
+    have htm : MeasurableSet t := G.grid.measurable n t hn
+    have hμt : G.μ t ≠ ∞ := (MeasureTheory.measure_lt_top G.μ t).ne
+    have hspan_one :
+        (fun x => Set.indicator t (fun _ => (1 : ℝ)) x)
+          ∈ Submodule.span ℝ (Set.range (FullHaarSystem.function G F)) :=
+      indicator_partition_mem_span_FullHaarSystem G F t n hn
+    have hone : MeasureTheory.indicatorConstLp (μ := G.μ) p htm hμt (1 : ℂ) ∈ M := by
+      let hreal : MeasureTheory.MemLp (Set.indicator t (fun _ => (1 : ℝ))) p G.μ :=
+        MeasureTheory.memLp_indicator_const p htm (1 : ℝ) (Or.inr hμt)
+      let hcomplex : MeasureTheory.MemLp (Set.indicator t (fun _ => (1 : ℂ))) p G.μ :=
+        MeasureTheory.memLp_indicator_const p htm (1 : ℂ) (Or.inr hμt)
+      have htoLp :
+          (hreal.ofReal (K := ℂ)).toLp
+              (fun x => ((Set.indicator t (fun _ => (1 : ℝ)) x : ℝ) : ℂ))
+            = hcomplex.toLp (Set.indicator t (fun _ => (1 : ℂ))) := by
+        apply MeasureTheory.MemLp.toLp_congr
+        exact Filter.Eventually.of_forall (fun x => by
+          by_cases hx : x ∈ t <;> simp [Set.indicator_of_mem, Set.indicator_of_notMem, hx])
+      have hone0 :
+          (hreal.ofReal (K := ℂ)).toLp
+              (fun x => ((Set.indicator t (fun _ => (1 : ℝ)) x : ℝ) : ℂ)) ∈ M := by
+        simpa [hreal, M] using
+          mem_fullHaarClosedSpanComplex_of_mem_function_span G F p hmem
+            (hreal.ofReal (K := ℂ)) hspan_one
+      simpa [MeasureTheory.indicatorConstLp, hcomplex] using htoLp ▸ hone0
+    rw [indicatorConstLp_complex_eq_smul_indicatorConstLp_one htm hμt d]
+    exact M.smul_mem d hone
+  have hcompl :
+      ∀ t (htm : MeasurableSet t), C t htm → C tᶜ htm.compl := by
+    intro t htm ht d
+    have huniv : C Set.univ MeasurableSet.univ := by
+      have hroot : Set.univ ∈ gridGeneratingSets G := by
+        refine Set.mem_iUnion.mpr ⟨0, ?_⟩
+        simpa [G.grid.first_partition_eq_univ]
+      simpa using hbasic Set.univ hroot
+    rw [indicatorConstLp_complex_compl_eq_sub htm ((MeasureTheory.measure_lt_top G.μ t).ne) d]
+    exact M.sub_mem (huniv d) (ht d)
+  have hiUnion :
+      ∀ (f : ℕ → Set α), Pairwise (fun i j => Disjoint (f i) (f j)) → ∀ hfm : ∀ i, MeasurableSet (f i),
+        (∀ i, C (f i) (hfm i)) → C (⋃ i, f i) (MeasurableSet.iUnion hfm) := by
+    intro f hfd hfm hf c
+    let u : ℕ → Set α := fun n => ⋃ i ∈ Finset.range n, f i
+    have hu_meas : ∀ n, MeasurableSet (u n) := by
+      intro n
+      exact Finset.measurableSet_biUnion (Finset.range n) (fun i _ => hfm i)
+    have hu_mem : ∀ n, MeasureTheory.indicatorConstLp (μ := G.μ) p (hu_meas n)
+        ((MeasureTheory.measure_lt_top G.μ (u n)).ne) c ∈ M := by
+      intro n
+      induction n with
+      | zero =>
+          simpa [u, M] using (M.zero_mem : (0 : FullHaarLpSpaceComplex G p) ∈ M)
+      | succ n ihn =>
+          have hdisj_union : Disjoint (u n) (f n) := by
+            refine Set.disjoint_left.mpr ?_
+            intro x hx_union hx_fn
+            simp only [u, Finset.mem_range, Finset.mem_coe, Set.mem_iUnion, exists_prop] at hx_union
+            rcases hx_union with ⟨i, hi_lt, hxi⟩
+            have hi_ne : i ≠ n := by omega
+            exact (Set.disjoint_left.mp (hfd hi_ne) hxi hx_fn).elim
+          have hu_succ : u (n + 1) = u n ∪ f n := by
+            ext x
+            simp only [u, Finset.mem_range, Set.mem_iUnion, exists_prop, Set.mem_union]
+            constructor
+            · rintro ⟨i, hi_lt, hxi⟩
+              by_cases hni : i = n
+              · right
+                simpa [hni] using hxi
+              · left
+                exact ⟨i, by omega, hxi⟩
+            · rintro (⟨i, hi_lt, hxi⟩ | hxi)
+              · exact ⟨i, by omega, hxi⟩
+              · exact ⟨n, by omega, hxi⟩
+          have h_union_eq :
+              MeasureTheory.indicatorConstLp (μ := G.μ) p (hu_meas (n + 1))
+                ((MeasureTheory.measure_lt_top G.μ (u (n + 1))).ne) c
+                = MeasureTheory.indicatorConstLp (μ := G.μ) p (hu_meas n)
+                    ((MeasureTheory.measure_lt_top G.μ (u n)).ne) c
+                    + MeasureTheory.indicatorConstLp (μ := G.μ) p (hfm n)
+                        ((MeasureTheory.measure_lt_top G.μ (f n)).ne) c := by
+            simpa [hu_succ] using
+              (MeasureTheory.indicatorConstLp_disjoint_union
+                (p := p) (s := u n) (t := f n)
+                (hu_meas n) (hfm n)
+                ((MeasureTheory.measure_lt_top G.μ (u n)).ne)
+                ((MeasureTheory.measure_lt_top G.μ (f n)).ne)
+                  hdisj_union c)
+          rw [h_union_eq]
+          exact M.add_mem ihn (hf n c)
+    have hu_subset : ∀ n, u n ⊆ ⋃ i, f i := by
+      intro n x hx
+      simp only [u, Finset.mem_range, Finset.mem_coe, Set.mem_iUnion, exists_prop] at hx
+      rcases hx with ⟨i, -, hxi⟩
+      exact Set.mem_iUnion.mpr ⟨i, hxi⟩
+    have hsymmDiff : ∀ n, u n ∆ (⋃ i, f i) = ⋃ i ≥ n, f i := by
+      intro n
+      ext x
+      constructor
+      · intro hx
+        have hx' : x ∈ ⋃ i, f i ∧ x ∉ u n := by
+          rcases Set.mem_symmDiff.mp hx with hxu | hxu
+          · exfalso
+            exact hxu.2 (hu_subset n hxu.1)
+          · exact hxu
+        rcases Set.mem_iUnion.mp hx'.1 with ⟨i, hxi⟩
+        by_cases hi : i < n
+        · exfalso
+          have hxun : x ∈ u n := by
+              exact Set.mem_iUnion.2 ⟨i, Set.mem_iUnion.2 ⟨by simpa [Finset.mem_range] using hi, hxi⟩⟩
+          exact hx'.2 hxun
+        · exact Set.mem_iUnion.2 ⟨i, Set.mem_iUnion.2 ⟨Nat.le_of_not_gt hi, hxi⟩⟩
+      · intro hx
+        rcases Set.mem_iUnion.mp hx with ⟨i, hx⟩
+        rcases Set.mem_iUnion.mp hx with ⟨hi_ge, hxi⟩
+        refine Set.mem_symmDiff.mpr ?_
+        right
+        constructor
+        · exact Set.mem_iUnion.2 ⟨i, hxi⟩
+        · intro hx_union
+          simp only [u, Finset.mem_range, Finset.mem_coe, Set.mem_iUnion, exists_prop] at hx_union
+          rcases hx_union with ⟨j, hj_lt, hxj⟩
+          have hij : j ≠ i := by omega
+          exact (Set.disjoint_left.mp (hfd hij) hxj hxi).elim
+    have htail_tendsto :
+          Filter.Tendsto (fun n => G.μ (u n ∆ (⋃ i, f i))) Filter.atTop (nhds 0) := by
+        have htail_eq :
+            (fun n => G.μ (u n ∆ (⋃ i, f i))) = fun n => G.μ (⋃ i ≥ n, f i) := by
+          funext n
+          rw [hsymmDiff n]
+        rw [htail_eq]
+        exact MeasureTheory.tendsto_measure_biUnion_Ici_zero_of_pairwise_disjoint
+          (fun i => (hfm i).nullMeasurableSet) hfd
+    have hlimit :
+          Filter.Tendsto
+            (fun n => MeasureTheory.indicatorConstLp (μ := G.μ) p (hu_meas n)
+              ((MeasureTheory.measure_lt_top G.μ (u n)).ne) c)
+            Filter.atTop
+            (nhds (MeasureTheory.indicatorConstLp (μ := G.μ) p (MeasurableSet.iUnion hfm)
+              ((MeasureTheory.measure_lt_top G.μ (⋃ i, f i)).ne) c)) := by
+      exact MeasureTheory.tendsto_indicatorConstLp_set
+        (μ := G.μ) (p := p) (s := ⋃ i, f i)
+        (hs := MeasurableSet.iUnion hfm)
+        (hμs := (MeasureTheory.measure_lt_top G.μ (⋃ i, f i)).ne)
+        (ht := hu_meas)
+        (hμt := fun n => (MeasureTheory.measure_lt_top G.μ (u n)).ne)
+        hp_top htail_tendsto
+    exact (Submodule.isClosed_topologicalClosure
+      (Submodule.span ℂ (Set.range (fullHaarLpFamilyComplex G F p hmem)))).mem_of_tendsto
+        hlimit (Filter.Eventually.of_forall hu_mem)
+  have hC : C s hs := by
+    refine MeasurableSpace.induction_on_inter
+      (grid_generates_eq_generateFrom_gridGeneratingSets G)
+      (isPiSystem_gridGeneratingSets G) hempty hbasic hcompl hiUnion s hs
+  simpa [M] using hC c
+
 /-- The closed span of the full Haar family is the whole `Lp` space. -/
 theorem fullHaarClosedSpan_eq_top
     {α : Type*} [MeasurableSpace α]
@@ -429,6 +777,45 @@ theorem fullHaarFamily_dense
     congrArg
       (fun S : Submodule ℝ (FullHaarLpSpace G p) => (S : Set (FullHaarLpSpace G p)))
       (fullHaarClosedSpan_eq_top G F p hp_top hmem)
+
+/-- The closed complex span of the full Haar family is the whole complex `Lp` space. -/
+theorem fullHaarClosedSpanComplex_eq_top
+    {α : Type*} [MeasurableSpace α]
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (F : FullHaarSystem (G := G))
+    (p : ENNReal) [Fact (1 ≤ p)]
+    (hp_top : p ≠ ∞)
+    (hmem : ∀ i, MeasureTheory.MemLp (F.function G i) p G.μ) :
+    fullHaarClosedSpanComplex G F p hmem = ⊤ := by
+  classical
+  let M : Submodule ℂ (FullHaarLpSpaceComplex G p) := fullHaarClosedSpanComplex G F p hmem
+  apply top_unique
+  intro f _
+  refine MeasureTheory.Lp.induction (μ := G.μ) (p := p) hp_top (motive := fun g => g ∈ M) ?_ ?_ ?_ f
+  · intro c s hs hμs
+    simpa [M] using indicatorConstLp_mem_fullHaarClosedSpanComplex G F p hp_top hmem hs hμs.ne c
+  · intro f g hf hg _ hfM hgM
+    exact M.add_mem hfM hgM
+  · simpa [M] using (Submodule.isClosed_topologicalClosure
+      (Submodule.span ℂ (Set.range (fullHaarLpFamilyComplex G F p hmem))) :
+        IsClosed ((fullHaarClosedSpanComplex G F p hmem :
+          Submodule ℂ (FullHaarLpSpaceComplex G p)) : Set _))
+
+/-- Equivalent dense-range formulation of `fullHaarClosedSpanComplex_eq_top`. -/
+theorem fullHaarFamilyComplex_dense
+    {α : Type*} [MeasurableSpace α]
+    (G : Grid (α := α)) [DecidableEq (Set α)]
+    (F : FullHaarSystem (G := G))
+    (p : ENNReal) [Fact (1 ≤ p)]
+    (hp_top : p ≠ ∞)
+    (hmem : ∀ i, MeasureTheory.MemLp (F.function G i) p G.μ) :
+    Dense (Submodule.span ℂ (Set.range (fullHaarLpFamilyComplex G F p hmem)) :
+      Set (FullHaarLpSpaceComplex G p)) := by
+  rw [dense_iff_closure_eq]
+  simpa [fullHaarClosedSpanComplex] using
+    congrArg
+      (fun S : Submodule ℂ (FullHaarLpSpaceComplex G p) => (S : Set (FullHaarLpSpaceComplex G p)))
+      (fullHaarClosedSpanComplex_eq_top G F p hp_top hmem)
 
 
 
