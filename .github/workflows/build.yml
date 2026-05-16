@@ -22,6 +22,11 @@ jobs:
           curl https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -sSf | sh -s -- -y
           echo "$HOME/.elan/bin" >> $GITHUB_PATH
 
+      - name: Install ripgrep
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ripgrep
+
       - name: Cache lake
         uses: actions/cache@v3
         with:
@@ -41,3 +46,19 @@ jobs:
 
       - name: Build
         run: lake build
+
+      - name: Detect package name
+        id: package
+        run: |
+          pkg=$(sed -n 's/^name = "\(.*\)"/\1/p' lakefile.toml | head -n1)
+          if [ -z "$pkg" ]; then
+            echo "Could not detect package name from lakefile.toml" >&2
+            exit 1
+          fi
+          echo "name=$pkg" >> "$GITHUB_OUTPUT"
+
+      - name: Leanchecker
+        run: lake env leanchecker --fresh "${{ steps.package.outputs.name }}"
+
+      - name: Proof sanity check
+        run: bash scripts/check-proof-sanity.sh
