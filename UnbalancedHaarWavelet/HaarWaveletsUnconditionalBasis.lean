@@ -350,7 +350,7 @@ Complex finite-sign control for the complexified full Haar family.
 The intended proof splits complex coefficients into real and imaginary parts,
 applies `FullHaarSystem.hasFiniteSignBound_of_memLp` to both real families, and
 uses the contractive real/imaginary projections on `Lp ℂ`. This gives the
-constant `2 * (Burkholder.pStar p.toReal - 1)`.
+ value `2 * (Burkholder.pStar p.toReal - 1)`.
 -/
 theorem FullHaarSystem.hasFiniteSignBound_complex_of_memLp
     {α : Type*} [MeasurableSpace α]
